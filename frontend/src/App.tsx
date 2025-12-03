@@ -6,6 +6,8 @@ import PropertyRegistry from './components/PropertyRegistry';
 import Changelog from './components/Changelog';
 import BulkImport from './components/BulkImport';
 import FilterBar from './components/FilterBar';
+import Header from './components/Header';
+import { ToastContainer, useToast } from './components/Toast';
 import { useDarkMode } from './hooks/useDarkMode';
 import { Event, Property, ChangelogEntry, FilterOptions, ActiveFilters } from './types/api';
 
@@ -30,6 +32,7 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -110,9 +113,10 @@ function App() {
       });
       fetchEvents();
       fetchChangelog();
+      toast.success('Event deleted successfully');
     } catch (error) {
       console.error('Error deleting event:', error);
-      alert('Failed to delete event');
+      toast.error('Failed to delete event');
     }
   };
 
@@ -127,51 +131,56 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Event Taxonomy Manager</h1>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Manage events, properties, and track changes across your analytics taxonomy
-            </p>
+    <div className="min-h-screen bg-background transition-colors">
+      {/* Header */}
+      <Header isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} />
+
+      {/* Toast Container */}
+      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
+
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Title */}
+        <div className="mb-8 animate-fade-in">
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-bold text-foreground">Taxonomy Overview</h2>
+            <div className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-semibold">
+              {events.length} Events
+            </div>
           </div>
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-            aria-label="Toggle dark mode"
-          >
-            {isDarkMode ? (
-              <svg className="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-              </svg>
-            )}
-          </button>
+          <p className="text-muted-foreground">
+            Manage events, properties, and track changes across your analytics taxonomy
+          </p>
         </div>
 
         {/* Search Bar */}
-        <div className="mb-4">
+        <div className="mb-4 animate-slide-up">
           <div className="relative">
             <input
               type="text"
               placeholder="Search events (name, category, description, properties, creator...)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 pl-11 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-all shadow-soft hover:shadow-medium"
             />
             <svg
-              className="absolute left-3 top-3 w-5 h-5 text-gray-400"
+              className="absolute left-3.5 top-3.5 w-5 h-5 text-muted-foreground"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-3 p-0.5 rounded-md hover:bg-muted transition-colors"
+                aria-label="Clear search"
+              >
+                <svg className="w-5 h-5 text-muted-foreground" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -185,53 +194,75 @@ function App() {
         />
 
         {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="mb-6 border-b border-border">
           <nav className="-mb-px flex space-x-8">
             <button
               onClick={() => setActiveTab('events')}
-              className={`${
+              className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all ${
                 activeTab === 'events'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+              }`}
             >
-              Events ({events.length})
+              <svg className={`w-4 h-4 transition-transform ${activeTab === 'events' ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Events
+              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                activeTab === 'events' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              }`}>
+                {events.length}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('properties')}
-              className={`${
+              className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all ${
                 activeTab === 'properties'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+              }`}
             >
-              Property Registry ({properties.length})
+              <svg className={`w-4 h-4 transition-transform ${activeTab === 'properties' ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343" />
+              </svg>
+              Properties
+              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                activeTab === 'properties' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              }`}>
+                {properties.length}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('changelog')}
-              className={`${
+              className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all ${
                 activeTab === 'changelog'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+              }`}
             >
+              <svg className={`w-4 h-4 transition-transform ${activeTab === 'changelog' ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               Changelog
             </button>
             <button
               onClick={() => setActiveTab('import')}
-              className={`${
+              className={`group inline-flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-all ${
                 activeTab === 'import'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+              }`}
             >
+              <svg className={`w-4 h-4 transition-transform ${activeTab === 'import' ? 'scale-110' : 'group-hover:scale-110'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
               Bulk Import
             </button>
           </nav>
         </div>
 
         {/* Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50">
+        <div className="bg-card rounded-lg shadow-medium border border-border/50 overflow-hidden transition-all hover:shadow-strong">
           {activeTab === 'events' && (
             <EventList
               events={events}
