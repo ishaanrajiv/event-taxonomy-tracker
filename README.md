@@ -36,7 +36,8 @@ For production deployment, you must implement:
 - Managed with `uv`
 
 **Frontend:**
-- React + Vite
+- React 19 + TypeScript
+- Vite build tool
 - Tailwind CSS
 - Axios for API calls
 
@@ -44,18 +45,19 @@ For production deployment, you must implement:
 
 ```bash
 # Install dependencies
-uv sync
-npm install --prefix frontend
+uv sync                          # Backend dependencies
+npm install --prefix frontend     # Frontend dependencies
+npm install                       # Root dependencies (concurrently)
 
-# Run both servers (easiest method)
-./run.sh
+# Run both servers with one command
+npm run dev
 
 # Or run manually in separate terminals:
 # Terminal 1 - Backend
-uv run uvicorn api:app --reload --port 8000
+cd backend && uv run uvicorn api:app --reload --port 8000
 
 # Terminal 2 - Frontend
-npm run dev --prefix frontend
+cd frontend && npm run dev
 ```
 
 Then visit:
@@ -121,24 +123,32 @@ Switch to the "Changelog" tab to see a full audit trail of all changes:
 
 ```
 event-taxonomy-tool/
-├── api.py              # FastAPI application and endpoints
-├── database.py         # SQLAlchemy models and database setup
-├── models.py           # Pydantic models for API validation
-├── utils.py            # Utility functions (fuzzy search)
-├── seed_data.py        # Sample data seeder (optional)
-├── pyproject.toml      # Python dependencies (managed by uv)
-├── run.sh              # Convenience script to start both servers
+├── backend/
+│   ├── api.py              # FastAPI application and endpoints
+│   ├── database.py         # SQLAlchemy models and database setup
+│   ├── models.py           # Pydantic models for API validation
+│   ├── utils.py            # Utility functions (fuzzy search)
+│   ├── seed_data.py        # Sample data seeder (optional)
+│   └── pyproject.toml      # Python dependencies (managed by uv)
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx                    # Main app component
+│   │   ├── App.tsx                    # Main app component
+│   │   ├── main.tsx                   # Entry point
+│   │   ├── types/
+│   │   │   └── api.ts                 # TypeScript type definitions
+│   │   ├── hooks/
+│   │   │   └── useDarkMode.ts         # Dark mode hook
 │   │   ├── components/
-│   │   │   ├── EventList.jsx          # Event list with expandable rows
-│   │   │   ├── EventModal.jsx         # Create/edit event modal
-│   │   │   ├── PropertyRegistry.jsx   # Property registry view
-│   │   │   └── Changelog.jsx          # Changelog view
+│   │   │   ├── EventList.tsx          # Event list with expandable rows
+│   │   │   ├── EventModal.tsx         # Create/edit event modal
+│   │   │   ├── PropertyRegistry.tsx   # Property registry view
+│   │   │   ├── Changelog.tsx          # Changelog view
+│   │   │   └── BulkImport.tsx         # Bulk import component
 │   │   └── index.css                  # Tailwind CSS
+│   ├── tsconfig.json           # TypeScript configuration
 │   ├── package.json
 │   └── tailwind.config.js
+├── package.json            # Root package.json for concurrently
 └── README.md
 ```
 
@@ -189,12 +199,15 @@ Response:
 
 ### What's Included in POC
 
-✅ Event + Property management with normalized model  
-✅ Property registry with type enforcement  
-✅ Similar name suggestions (fuzzy matching)  
-✅ Conflict detection (same property name, different data type)  
-✅ Full changelog (automatic)  
-✅ Search/filter  
+✅ Event + Property management with normalized model
+✅ Property registry with type enforcement
+✅ Similar name suggestions (fuzzy matching)
+✅ Conflict detection (same property name, different data type)
+✅ Full changelog (automatic)
+✅ Search/filter
+✅ Dark mode support
+✅ Bulk import/export (CSV & JSON)
+✅ TypeScript frontend with full type safety
 ✅ Simple UI with Tailwind CSS  
 
 ### Out of Scope for POC
