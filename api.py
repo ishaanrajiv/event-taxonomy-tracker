@@ -1,7 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import json
+import csv
+import io
 
 from database import get_db, init_db, Event, Property, EventProperty, Changelog
 from models import (
@@ -449,3 +453,241 @@ def search(q: str, db: Session = Depends(get_db)):
 @app.get("/")
 def root():
     return {"message": "Event Taxonomy Tool API", "version": "1.0.0"}
+
+
+# ========== BULK IMPORT/EXPORT ENDPOINTS ==========
+
+@app.get("/api/export/template/json")
+def download_json_template():
+    """Download a JSON template for bulk import."""
+    template = [
+        {
+            "name": "Example Event",
+            "description": "Description of what triggers this event",
+            "category": "Engagement",
+            "properties": [
+                {
+                    "property_name": "example_property",
+                    "property_type": "event",
+                    "data_type": "String",
+                    "is_required": True,
+                    "example_value": "example_value",
+                    "description": "What this property represents"
+                }
+            ]
+        }
+    ]
+
+    json_str = json.dumps(template, indent=2)
+    return StreamingResponse(
+        io.BytesIO(json_str.encode()),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=event_template.json"}
+    )
+
+
+@app.get("/api/export/template/csv")
+def download_csv_template():
+    """Download a CSV template for bulk import."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    writer.writerow([
+        "event_name", "event_description", "event_category",
+        "property_name", "property_type", "data_type",
+        "is_required", "example_value", "property_description"
+    ])
+
+    # Example rows
+    writer.writerow([
+        "Example Event", "Description of event", "Engagement",
+        "user_id", "user", "String", "true", "user_123", "Unique user identifier"
+    ])
+    writer.writerow([
+        "Example Event", "", "",
+        "action_name", "event", "String", "true", "click", "Name of the action"
+    ])
+
+    output.seek(0)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=event_template.csv"}
+    )
+
+
+@app.post("/api/import/json")
+async def import_json(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Import events from JSON file."""
+    try:
+        content = await file.read()
+        events_data = json.loads(content)
+
+        if not isinstance(events_data, list):
+            raise HTTPException(status_code=400, detail="JSON must be an array of events")
+
+        imported_count = 0
+        errors = []
+
+        for idx, event_data in enumerate(events_data):
+            try:
+                event_create = EventCreate(**event_data)
+                # Use the existing create_event logic
+                db_event = Event(
+                    name=event_create.name,
+                    description=event_create.description,
+                    category=event_create.category,
+                    created_by=event_create.created_by or "bulk_import"
+                )
+                db.add(db_event)
+                db.flush()
+
+                for prop_create in event_create.properties:
+                    property_obj = db.query(Property).filter(
+                        Property.name == prop_create.property_name
+                    ).first()
+
+                    if property_obj:
+                        if property_obj.data_type != prop_create.data_type:
+                            errors.append(f"Event '{event_create.name}': Property '{prop_create.property_name}' type conflict")
+                            continue
+                    else:
+                        property_obj = Property(
+                            name=prop_create.property_name,
+                            data_type=prop_create.data_type,
+                            description=prop_create.description,
+                            created_by="bulk_import"
+                        )
+                        db.add(property_obj)
+                        db.flush()
+
+                    event_property = EventProperty(
+                        event_id=db_event.id,
+                        property_id=property_obj.id,
+                        property_type=prop_create.property_type,
+                        is_required=prop_create.is_required,
+                        example_value=prop_create.example_value
+                    )
+                    db.add(event_property)
+
+                db.commit()
+                imported_count += 1
+
+            except Exception as e:
+                errors.append(f"Row {idx + 1}: {str(e)}")
+                db.rollback()
+
+        return {
+            "imported": imported_count,
+            "total": len(events_data),
+            "errors": errors
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/import/csv")
+async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Import events from CSV file."""
+    try:
+        content = await file.read()
+        csv_data = io.StringIO(content.decode('utf-8'))
+        reader = csv.DictReader(csv_data)
+
+        events_dict = {}
+        errors = []
+
+        for idx, row in enumerate(reader):
+            try:
+                event_name = row.get('event_name', '').strip()
+                if not event_name:
+                    continue
+
+                # Group properties by event
+                if event_name not in events_dict:
+                    events_dict[event_name] = {
+                        'name': event_name,
+                        'description': row.get('event_description', '').strip(),
+                        'category': row.get('event_category', '').strip(),
+                        'properties': []
+                    }
+
+                # Add property if present
+                prop_name = row.get('property_name', '').strip()
+                if prop_name:
+                    events_dict[event_name]['properties'].append({
+                        'property_name': prop_name,
+                        'property_type': row.get('property_type', 'event').strip(),
+                        'data_type': row.get('data_type', 'String').strip(),
+                        'is_required': row.get('is_required', '').lower() in ['true', '1', 'yes'],
+                        'example_value': row.get('example_value', '').strip(),
+                        'description': row.get('property_description', '').strip()
+                    })
+
+            except Exception as e:
+                errors.append(f"Row {idx + 2}: {str(e)}")
+
+        imported_count = 0
+
+        for event_data in events_dict.values():
+            try:
+                event_create = EventCreate(
+                    name=event_data['name'],
+                    description=event_data['description'],
+                    category=event_data['category'],
+                    created_by="bulk_import",
+                    properties=[EventPropertyCreate(**p) for p in event_data['properties']]
+                )
+
+                db_event = Event(
+                    name=event_create.name,
+                    description=event_create.description,
+                    category=event_create.category,
+                    created_by="bulk_import"
+                )
+                db.add(db_event)
+                db.flush()
+
+                for prop_create in event_create.properties:
+                    property_obj = db.query(Property).filter(
+                        Property.name == prop_create.property_name
+                    ).first()
+
+                    if not property_obj:
+                        property_obj = Property(
+                            name=prop_create.property_name,
+                            data_type=prop_create.data_type,
+                            description=prop_create.description,
+                            created_by="bulk_import"
+                        )
+                        db.add(property_obj)
+                        db.flush()
+
+                    event_property = EventProperty(
+                        event_id=db_event.id,
+                        property_id=property_obj.id,
+                        property_type=prop_create.property_type,
+                        is_required=prop_create.is_required,
+                        example_value=prop_create.example_value
+                    )
+                    db.add(event_property)
+
+                db.commit()
+                imported_count += 1
+
+            except Exception as e:
+                errors.append(f"Event '{event_data['name']}': {str(e)}")
+                db.rollback()
+
+        return {
+            "imported": imported_count,
+            "total": len(events_dict),
+            "errors": errors
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

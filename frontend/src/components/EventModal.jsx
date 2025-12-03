@@ -20,6 +20,8 @@ export default function EventModal({ event, onClose, apiBase }) {
   })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState('ui') // 'ui' or 'json'
+  const [jsonText, setJsonText] = useState('')
 
   useEffect(() => {
     if (event) {
@@ -89,6 +91,48 @@ export default function EventModal({ event, onClose, apiBase }) {
 
   const removeProperty = (propId) => {
     setProperties(properties.filter(p => p.id !== propId))
+  }
+
+  const syncToJson = () => {
+    const eventObj = {
+      name: formData.name,
+      description: formData.description,
+      category: formData.category,
+      properties: properties.map(p => ({
+        property_name: p.property_name,
+        property_type: p.property_type,
+        data_type: p.data_type,
+        is_required: p.is_required,
+        example_value: p.example_value,
+        description: p.description
+      }))
+    }
+    setJsonText(JSON.stringify(eventObj, null, 2))
+  }
+
+  const syncFromJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText)
+      setFormData({
+        name: parsed.name || '',
+        description: parsed.description || '',
+        category: parsed.category || '',
+        created_by: formData.created_by
+      })
+      setProperties((parsed.properties || []).map((p, idx) => ({ ...p, id: Date.now() + idx })))
+      setError('')
+    } catch (e) {
+      setError('Invalid JSON format')
+    }
+  }
+
+  const handleViewModeChange = (mode) => {
+    if (mode === 'json' && viewMode === 'ui') {
+      syncToJson()
+    } else if (mode === 'ui' && viewMode === 'json') {
+      syncFromJson()
+    }
+    setViewMode(mode)
   }
 
   const handleSubmit = async (e) => {
@@ -165,7 +209,35 @@ export default function EventModal({ event, onClose, apiBase }) {
             </div>
           )}
 
+          {/* View Mode Toggle */}
+          <div className="mb-6 flex gap-2 border-b border-gray-200">
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('ui')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                viewMode === 'ui'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              UI Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewModeChange('json')}
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+                viewMode === 'json'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              JSON Mode
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit}>
+            {viewMode === 'ui' ? (
+              <>
             {/* Event Details */}
             <div className="space-y-4 mb-6">
               <div>
@@ -350,9 +422,43 @@ export default function EventModal({ event, onClose, apiBase }) {
                 </div>
               )}
             </div>
+              </>
+            ) : (
+              /* JSON Mode */
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Event JSON
+                  </label>
+                  <textarea
+                    value={jsonText}
+                    onChange={(e) => setJsonText(e.target.value)}
+                    className="w-full h-96 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={`{
+  "name": "Event Name",
+  "description": "Event description",
+  "category": "Engagement",
+  "properties": [
+    {
+      "property_name": "property_name",
+      "property_type": "event",
+      "data_type": "String",
+      "is_required": true,
+      "example_value": "example",
+      "description": "Property description"
+    }
+  ]
+}`}
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Edit the JSON directly. Switch back to UI Mode to apply changes.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
                 onClick={() => onClose(false)}

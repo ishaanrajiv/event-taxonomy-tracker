@@ -2,6 +2,22 @@
 
 A weekend POC for managing analytics event taxonomies with property registry, conflict detection, and automatic changelog.
 
+## Security Notice
+
+**This is a proof-of-concept tool intended for development and learning purposes.**
+
+For production deployment, you must implement:
+- ✅ **Authentication and authorization** - Currently has no access control
+- ✅ **CORS configuration** - Currently allows all localhost origins
+- ✅ **Production database** - Use PostgreSQL instead of SQLite
+- ✅ **Rate limiting** - Protect against abuse
+- ✅ **Input validation** - Add field length limits and sanitization
+- ✅ **HTTPS/TLS** - Secure transport layer
+- ✅ **Security headers** - CSP, HSTS, etc.
+- ✅ **Logging and monitoring** - Track security events
+
+**Do not deploy this POC to production without implementing proper security measures.**
+
 ## Features
 
 - **Event Management**: Create, edit, and delete analytics events

@@ -4,6 +4,7 @@ import EventList from './components/EventList'
 import EventModal from './components/EventModal'
 import PropertyRegistry from './components/PropertyRegistry'
 import Changelog from './components/Changelog'
+import BulkImport from './components/BulkImport'
 
 const API_BASE = 'http://localhost:8000/api'
 
@@ -150,6 +151,16 @@ function App() {
             >
               Changelog
             </button>
+            <button
+              onClick={() => setActiveTab('import')}
+              className={`${
+                activeTab === 'import'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Bulk Import
+            </button>
           </nav>
         </div>
 
@@ -169,6 +180,17 @@ function App() {
           )}
           {activeTab === 'changelog' && (
             <Changelog changelog={changelog} />
+          )}
+          {activeTab === 'import' && (
+            <BulkImport
+              apiBase={API_BASE}
+              onImportComplete={() => {
+                fetchEvents()
+                fetchProperties()
+                fetchChangelog()
+                setActiveTab('events')
+              }}
+            />
           )}
         </div>
       </div>
