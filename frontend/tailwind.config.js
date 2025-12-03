@@ -107,7 +107,6 @@ export default {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-brand': 'linear-gradient(to right, #243949 0%, #517fa4 100%)',
-        'gradient-brand-dark': 'linear-gradient(to right, #3a5a6f 0%, #6fa3d0 100%)',
       },
     },
   },
