@@ -257,282 +257,352 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
       onClick={(e: MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) {
           onClose(false);
         }
       }}
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {event ? 'Edit Event' : 'Create New Event'}
-            </h2>
-            <button
-              onClick={() => onClose(false)}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1"
-              aria-label="Close"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300 text-sm">
-              {error}
+      <div className="bg-background border border-border rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden relative shadow-strong animate-scale-in">
+        <div className="overflow-y-auto max-h-[90vh]">
+          {/* Header with gradient accent */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-gradient-brand dark:bg-gradient-brand-dark shadow-medium">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-foreground">
+                    {event ? 'Edit Event' : 'Create New Event'}
+                  </h2>
+                </div>
+                <p className="text-sm text-muted-foreground ml-12">
+                  {event ? 'Update event details and properties' : 'Define a new analytics event for your application'}
+                </p>
+              </div>
+              <button
+                onClick={() => onClose(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-2 hover:bg-muted rounded-lg"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-          )}
-
-          {/* View Mode Toggle */}
-          <div className="mb-6 flex gap-2 border-b border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('ui')}
-              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${viewMode === 'ui'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-            >
-              UI Mode
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewModeChange('json')}
-              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${viewMode === 'json'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-            >
-              JSON Mode
-            </button>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            {viewMode === 'ui' ? (
-              <>
-                {/* Event Details */}
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Event Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., Content Shared"
-                    />
+          <div className="p-6">
+            {error && (
+              <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-start gap-3 animate-slide-down">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* View Mode Toggle */}
+            <div className="mb-6 inline-flex p-1 bg-muted rounded-lg">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('ui')}
+                className={`px-4 py-2 font-medium text-sm rounded-md transition-all ${
+                  viewMode === 'ui'
+                    ? 'bg-background text-foreground shadow-soft'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                  </svg>
+                  UI Mode
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('json')}
+                className={`px-4 py-2 font-medium text-sm rounded-md transition-all ${
+                  viewMode === 'json'
+                    ? 'bg-background text-foreground shadow-soft'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  JSON Mode
+                </div>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              {viewMode === 'ui' ? (
+                <>
+                  {/* Event Details */}
+                  <div className="space-y-5 mb-8">
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        Event Name <span className="text-destructive">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                        placeholder="e.g., Content Shared"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        Description
+                      </label>
+                      <textarea
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow resize-none"
+                        rows={3}
+                        placeholder="Describe when this event is triggered..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-foreground mb-2">
+                        Category
+                      </label>
+                      <input
+                        type="text"
+                        list="features-list"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        placeholder="Select or type a custom category"
+                        className="w-full px-4 py-3 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                      />
+                      <datalist id="features-list">
+                        {features.recent.length > 0 && (
+                          <>
+                            <option disabled>── Recently Used ──</option>
+                            {features.recent.map((f) => (
+                              <option key={`recent-${f}`} value={f} />
+                            ))}
+                          </>
+                        )}
+                        {features.all.filter(f => !features.recent.includes(f)).length > 0 && (
+                          <>
+                            <option disabled>── All Categories ──</option>
+                            {features.all
+                              .filter(f => !features.recent.includes(f))
+                              .map((f) => (
+                                <option key={`all-${f}`} value={f} />
+                              ))}
+                          </>
+                        )}
+                      </datalist>
+                      {features.recent.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Recently used: {features.recent.join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
+                  {/* Properties Section */}
+                  <div className="border-t border-border pt-8 mb-8">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="p-2 rounded-lg bg-muted">
+                        <svg className="w-5 h-5 text-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-foreground">Properties</h3>
+                      <span className="text-sm text-muted-foreground">({properties.length})</span>
+                    </div>
+
+                    {/* Add Property Form */}
+                    <div className="bg-muted/50 border border-border p-5 rounded-lg mb-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="relative md:col-span-2">
+                          <label className="block text-xs font-semibold text-foreground mb-2">
+                            Property Name <span className="text-destructive">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={currentProperty.property_name}
+                            onChange={(e) => handlePropertyNameChange(e.target.value)}
+                            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                            placeholder="e.g., user_id"
+                          />
+                          {suggestions.length > 0 && (
+                            <div className="absolute z-20 w-full mt-1 bg-background border border-border rounded-lg shadow-strong max-h-48 overflow-y-auto animate-slide-down">
+                              <div className="sticky top-0 p-2.5 bg-accent/10 border-b border-accent/20 text-xs font-semibold text-accent-foreground flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                Similar properties found
+                              </div>
+                              {suggestions.map((sug, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => selectSuggestion(sug)}
+                                  className="px-4 py-3 hover:bg-muted cursor-pointer border-b border-border last:border-b-0 transition-colors"
+                                >
+                                  <div className="text-sm font-medium text-foreground">{sug.name}</div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {sug.data_type} • {Math.round(sug.similarity * 100)}% match
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground mb-2">
+                            Property Type
+                          </label>
+                          <select
+                            value={currentProperty.property_type}
+                            onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value as 'event' | 'user' | 'super' })}
+                            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                          >
+                            <option value="event">Event</option>
+                            <option value="user">User</option>
+                            <option value="super">Super</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground mb-2">
+                            Data Type
+                          </label>
+                          <select
+                            value={currentProperty.data_type}
+                            onChange={(e) => setCurrentProperty({ ...currentProperty, data_type: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                          >
+                            <option value="String">String</option>
+                            <option value="Int">Int</option>
+                            <option value="Float">Float</option>
+                            <option value="Boolean">Boolean</option>
+                            <option value="List">List</option>
+                            <option value="JSON">JSON</option>
+                          </select>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-foreground mb-2">
+                            Example Value
+                          </label>
+                          <input
+                            type="text"
+                            value={currentProperty.example_value || ''}
+                            onChange={(e) => setCurrentProperty({ ...currentProperty, example_value: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow"
+                            placeholder="e.g., abc123"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="flex items-center gap-2.5 cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={currentProperty.is_required}
+                              onChange={(e) => setCurrentProperty({ ...currentProperty, is_required: e.target.checked })}
+                              className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-ring"
+                            />
+                            <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">Required property</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={addProperty}
+                        className="mt-4 px-5 py-2.5 bg-gradient-brand dark:bg-gradient-brand-dark text-white font-medium rounded-lg hover:shadow-glow transition-all duration-200 hover:scale-105 active:scale-95 inline-flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Property
+                      </button>
+                    </div>
+
+                    {/* Properties List */}
+                    {properties.length > 0 && (
+                      <div className="space-y-2">
+                        {properties.map((prop, index) => (
+                          <div key={prop.id} className="group flex items-center justify-between p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-all duration-200 animate-slide-up" style={{ animationDelay: `${index * 50}ms` }}>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-foreground">{prop.property_name}</span>
+                                {prop.is_required && (
+                                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-destructive/10 text-destructive">
+                                    Required
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                  prop.property_type === 'event' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                  prop.property_type === 'user' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                                  'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                                }`}>
+                                  {prop.property_type}
+                                </span>
+                                <span className="text-muted-foreground">•</span>
+                                <code className="px-2 py-0.5 bg-muted rounded text-xs font-mono">{prop.data_type}</code>
+                                {prop.example_value && (
+                                  <>
+                                    <span className="text-muted-foreground">•</span>
+                                    <span className="text-xs">e.g., {prop.example_value}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeProperty(prop.id)}
+                              className="ml-4 p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {properties.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <p className="text-sm">No properties added yet</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* JSON Mode */
+                <div className="space-y-4 mb-8">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Description
+                    <label className="block text-sm font-semibold text-foreground mb-2">
+                      Event JSON
                     </label>
                     <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      rows={3}
-                      placeholder="Describe when this event is triggered..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Feature
-                    </label>
-                    <input
-                      type="text"
-                      list="features-list"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="Select or type a custom feature"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <datalist id="features-list">
-                      {features.recent.length > 0 && (
-                        <>
-                          <option disabled>── Recently Used ──</option>
-                          {features.recent.map((f) => (
-                            <option key={`recent-${f}`} value={f} />
-                          ))}
-                        </>
-                      )}
-                      {features.all.filter(f => !features.recent.includes(f)).length > 0 && (
-                        <>
-                          <option disabled>── All Features ──</option>
-                          {features.all
-                            .filter(f => !features.recent.includes(f))
-                            .map((f) => (
-                              <option key={`all-${f}`} value={f} />
-                            ))}
-                        </>
-                      )}
-                    </datalist>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {features.recent.length > 0
-                        ? `Recently used: ${features.recent.join(', ')}`
-                        : 'Start typing to add a custom feature'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Properties */}
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Properties</h3>
-
-                  {/* Add Property Form */}
-                  <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Property Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={currentProperty.property_name}
-                          onChange={(e) => handlePropertyNameChange(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500"
-                          placeholder="e.g., user_id"
-                        />
-                        {suggestions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                            <div className="p-2 bg-yellow-50 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-800 text-xs text-yellow-800 dark:text-yellow-200">
-                              Similar properties found:
-                            </div>
-                            {suggestions.map((sug, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => selectSuggestion(sug)}
-                                className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0"
-                              >
-                                <div className="text-sm font-medium text-gray-900 dark:text-white">{sug.name}</div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400">
-                                  {sug.data_type} • {Math.round(sug.similarity * 100)}% match
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Property Type
-                        </label>
-                        <select
-                          value={currentProperty.property_type}
-                          onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value as 'event' | 'user' | 'super' })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        >
-                          <option value="event">Event</option>
-                          <option value="user">User</option>
-                          <option value="super">Super</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Data Type
-                        </label>
-                        <select
-                          value={currentProperty.data_type}
-                          onChange={(e) => setCurrentProperty({ ...currentProperty, data_type: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                        >
-                          <option value="String">String</option>
-                          <option value="Int">Int</option>
-                          <option value="Float">Float</option>
-                          <option value="Boolean">Boolean</option>
-                          <option value="List">List</option>
-                          <option value="JSON">JSON</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Example Value
-                        </label>
-                        <input
-                          type="text"
-                          value={currentProperty.example_value}
-                          onChange={(e) => setCurrentProperty({ ...currentProperty, example_value: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                          placeholder="e.g., abc123"
-                        />
-                      </div>
-
-                      <div className="col-span-2">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={currentProperty.is_required}
-                            onChange={(e) => setCurrentProperty({ ...currentProperty, is_required: e.target.checked })}
-                            className="rounded border-gray-300 dark:border-gray-600"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Required property</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={addProperty}
-                      className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                    >
-                      + Add Property
-                    </button>
-                  </div>
-
-                  {/* Properties List */}
-                  {properties.length > 0 && (
-                    <div className="space-y-2">
-                      {properties.map((prop) => (
-                        <div key={prop.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
-                          <div className="flex-1">
-                            <span className="font-medium text-gray-900 dark:text-white">{prop.property_name}</span>
-                            <span className="mx-2 text-gray-400 dark:text-gray-500">•</span>
-                            <span className="text-sm text-gray-600 dark:text-gray-300">{prop.property_type}</span>
-                            <span className="mx-2 text-gray-400 dark:text-gray-500">•</span>
-                            <span className="text-sm text-gray-600 dark:text-gray-300">{prop.data_type}</span>
-                            {prop.is_required && (
-                              <>
-                                <span className="mx-2 text-gray-400 dark:text-gray-500">•</span>
-                                <span className="text-xs text-red-600 dark:text-red-400 font-medium">Required</span>
-                              </>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeProperty(prop.id)}
-                            className="ml-4 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              /* JSON Mode */
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Event JSON
-                  </label>
-                  <textarea
-                    value={jsonText}
-                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setJsonText(e.target.value)}
-                    className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder={`{
+                      value={jsonText}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setJsonText(e.target.value)}
+                      className="w-full h-96 px-4 py-3 border border-border rounded-lg bg-background text-foreground font-mono text-sm focus:ring-2 focus:ring-ring focus:border-transparent transition-shadow resize-none"
+                      placeholder={`{
   "name": "Event Name",
   "description": "Event description",
   "category": "Engagement",
@@ -547,32 +617,51 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
     }
   ]
 }`}
-                  />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Edit the JSON directly. Switch back to UI Mode to apply changes.
-                  </p>
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Edit the JSON directly. Switch back to UI Mode to apply changes.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => onClose(false)}
-                className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : event ? 'Update Event' : 'Create Event'}
-              </button>
-            </div>
-          </form>
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => onClose(false)}
+                  className="px-6 py-2.5 border border-border rounded-lg text-foreground hover:bg-muted transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2.5 bg-gradient-brand dark:bg-gradient-brand-dark text-white font-medium rounded-lg hover:shadow-glow transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 inline-flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {event ? 'Update Event' : 'Create Event'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </div>
