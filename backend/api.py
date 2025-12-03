@@ -210,17 +210,29 @@ def update_event(
         "category": db_event.category
     }
 
-    # Update fields
+    # Update fields and track if anything actually changed
     has_changes = False
-    if event_update.name is not None and event_update.name != db_event.name:
-        db_event.name = event_update.name
-        has_changes = True
-    if event_update.description is not None and event_update.description != db_event.description:
-        db_event.description = event_update.description
-        has_changes = True
-    if event_update.category is not None and event_update.category != db_event.category:
-        db_event.category = event_update.category
-        has_changes = True
+
+    if event_update.name is not None:
+        if event_update.name != db_event.name:
+            db_event.name = event_update.name
+            has_changes = True
+
+    if event_update.description is not None:
+        # Treat empty string and None as equivalent
+        old_desc = db_event.description if db_event.description else ""
+        new_desc = event_update.description if event_update.description else ""
+        if new_desc != old_desc:
+            db_event.description = event_update.description
+            has_changes = True
+
+    if event_update.category is not None:
+        # Treat empty string and None as equivalent
+        old_cat = db_event.category if db_event.category else ""
+        new_cat = event_update.category if event_update.category else ""
+        if new_cat != old_cat:
+            db_event.category = event_update.category
+            has_changes = True
 
     db.commit()
     db.refresh(db_event)
@@ -348,11 +360,12 @@ def add_property_to_event(
     db.add(event_property)
     db.commit()
 
-    # Log as event update - property added
+    # Log as event update - property added (include event name for display)
     log_change(
         db, "event", event_id, "update",
         new_value={
             "action": "property_added",
+            "name": db_event.name,
             "property": {
                 "name": prop.property_name,
                 "type": prop.property_type,
@@ -383,7 +396,8 @@ def remove_property_from_event(
     if not event_property:
         raise HTTPException(status_code=404, detail="Event property association not found")
 
-    # Capture property info for changelog
+    # Capture property and event info for changelog
+    event_name = event_property.event.name
     property_info = {
         "name": event_property.property.name,
         "type": event_property.property_type,
@@ -395,11 +409,12 @@ def remove_property_from_event(
     db.delete(event_property)
     db.commit()
 
-    # Log as event update - property removed
+    # Log as event update - property removed (include event name for display)
     log_change(
         db, "event", event_id, "update",
         old_value={
             "action": "property_removed",
+            "name": event_name,
             "property": property_info
         },
         changed_by=changed_by

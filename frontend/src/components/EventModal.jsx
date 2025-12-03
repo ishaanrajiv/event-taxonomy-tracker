@@ -171,14 +171,21 @@ export default function EventModal({ event, onClose, apiBase }) {
       }
 
       if (event) {
-        // Update event metadata
-        await axios.put(`${apiBase}/events/${event.id}`, {
-          name: formData.name,
-          description: formData.description,
-          category: formData.category
-        }, {
-          params: { changed_by: formData.created_by }
-        })
+        // Update event metadata only if changed
+        const metadataChanged =
+          formData.name !== event.name ||
+          formData.description !== event.description ||
+          formData.category !== event.category
+
+        if (metadataChanged) {
+          await axios.put(`${apiBase}/events/${event.id}`, {
+            name: formData.name,
+            description: formData.description,
+            category: formData.category
+          }, {
+            params: { changed_by: formData.created_by }
+          })
+        }
 
         // Handle property changes - diff current vs original
         const originalProps = event.properties || []
