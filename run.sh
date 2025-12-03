@@ -3,12 +3,15 @@
 echo "🚀 Starting Event Taxonomy Tool..."
 echo ""
 
+# Store the project root directory
+PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+
 # Check if backend is already running
 if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null ; then
     echo "⚠️  Backend already running on port 8000"
 else
     echo "🐍 Starting backend on http://localhost:8000..."
-    uv run uvicorn api:app --reload --port 8000 &
+    (cd "$PROJECT_ROOT/backend" && uv run uvicorn api:app --reload --port 8000) &
     BACKEND_PID=$!
 fi
 
@@ -17,7 +20,7 @@ if lsof -Pi :5173 -sTCP:LISTEN -t >/dev/null ; then
     echo "⚠️  Frontend already running on port 5173"
 else
     echo "⚛️  Starting frontend on http://localhost:5173..."
-    npm run dev --prefix frontend &
+    (cd "$PROJECT_ROOT/frontend" && npm run dev) &
     FRONTEND_PID=$!
 fi
 
