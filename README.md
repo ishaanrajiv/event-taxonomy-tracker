@@ -1,4 +1,4 @@
-# Event Taxonomy Tool
+# Event Taxonomy Tracker
 
 A weekend POC for managing analytics event taxonomies with property registry, conflict detection, and automatic changelog.
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🛑 Stopping Event Taxonomy Tool servers..."
+echo "🛑 Stopping Event Taxonomy Tracker servers..."
 echo ""
 
 # Kill backend (port 8000)

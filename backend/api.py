@@ -16,7 +16,7 @@ from models import (
 )
 from utils import find_similar_properties
 
-app = FastAPI(title="Event Taxonomy Tool")
+app = FastAPI(title="Event Taxonomy Tracker")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -538,7 +538,7 @@ def get_features(db: Session = Depends(get_db)):
 
 @app.get("/")
 def root():
-    return {"message": "Event Taxonomy Tool API", "version": "1.0.0"}
+    return {"message": "Event Taxonomy Tracker API", "version": "1.0.0"}
 
 
 # ========== BULK IMPORT/EXPORT ENDPOINTS ==========

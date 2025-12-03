@@ -1,4 +1,4 @@
-Event Taxonomy Tool - POC Plan
+Event Taxonomy Tracker - POC Plan
 Perfect, this scopes nicely for a weekend POC. Let me think through the simplest thing that could work.
 
 POC Scope (Weekend-sized)

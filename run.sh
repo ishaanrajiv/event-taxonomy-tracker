@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting Event Taxonomy Tool..."
+echo "🚀 Starting Event Taxonomy Tracker..."
 echo ""
 
 # Store the project root directory
