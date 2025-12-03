@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { Moon, Sun } from 'lucide-react'
 import EventList from './components/EventList'
 import EventModal from './components/EventModal'
 import PropertyRegistry from './components/PropertyRegistry'
 import Changelog from './components/Changelog'
 import BulkImport from './components/BulkImport'
 import { useDarkMode } from './hooks/useDarkMode'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card } from '@/components/ui/card'
 
 const API_BASE = 'http://localhost:8000/api'
 
@@ -101,119 +106,92 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen gradient-bg transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8 flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Event Taxonomy Manager</h1>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Event Taxonomy Manager
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
               Manage events, properties, and track changes across your analytics taxonomy
             </p>
           </div>
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-            aria-label="Toggle dark mode"
+            className="rounded-full"
           >
             {isDarkMode ? (
-              <svg className="w-6 h-6 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-              </svg>
+              <Sun className="h-5 w-5" />
             ) : (
-              <svg className="w-6 h-6 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-              </svg>
+              <Moon className="h-5 w-5" />
             )}
-          </button>
+          </Button>
         </div>
 
         {/* Search Bar */}
         <div className="mb-6">
-          <input
+          <Input
             type="text"
             placeholder="Search events..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="max-w-md"
           />
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('events')}
-              className={`${
-                activeTab === 'events'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4 lg:w-auto">
+            <TabsTrigger value="events">
               Events ({events.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('properties')}
-              className={`${
-                activeTab === 'properties'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Property Registry ({properties.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('changelog')}
-              className={`${
-                activeTab === 'changelog'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
+            </TabsTrigger>
+            <TabsTrigger value="properties">
+              Properties ({properties.length})
+            </TabsTrigger>
+            <TabsTrigger value="changelog">
               Changelog
-            </button>
-            <button
-              onClick={() => setActiveTab('import')}
-              className={`${
-                activeTab === 'import'
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Bulk Import
-            </button>
-          </nav>
-        </div>
+            </TabsTrigger>
+            <TabsTrigger value="import">
+              Import
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50">
-          {activeTab === 'events' && (
-            <EventList
-              events={events}
-              loading={loading}
-              onCreateEvent={handleCreateEvent}
-              onEditEvent={handleEditEvent}
-              onDeleteEvent={handleDeleteEvent}
-            />
-          )}
-          {activeTab === 'properties' && (
-            <PropertyRegistry properties={properties} onRefresh={fetchProperties} />
-          )}
-          {activeTab === 'changelog' && (
-            <Changelog changelog={changelog} />
-          )}
-          {activeTab === 'import' && (
-            <BulkImport
-              apiBase={API_BASE}
-              onImportComplete={() => {
-                fetchEvents()
-                fetchProperties()
-                fetchChangelog()
-                setActiveTab('events')
-              }}
-            />
-          )}
-        </div>
+          <Card className="glass border-border/50 shadow-xl">
+            <TabsContent value="events" className="m-0">
+              <EventList
+                events={events}
+                loading={loading}
+                onCreateEvent={handleCreateEvent}
+                onEditEvent={handleEditEvent}
+                onDeleteEvent={handleDeleteEvent}
+              />
+            </TabsContent>
+
+            <TabsContent value="properties" className="m-0">
+              <PropertyRegistry properties={properties} onRefresh={fetchProperties} />
+            </TabsContent>
+
+            <TabsContent value="changelog" className="m-0">
+              <Changelog changelog={changelog} />
+            </TabsContent>
+
+            <TabsContent value="import" className="m-0">
+              <BulkImport
+                apiBase={API_BASE}
+                onImportComplete={() => {
+                  fetchEvents()
+                  fetchProperties()
+                  fetchChangelog()
+                  setActiveTab('events')
+                }}
+              />
+            </TabsContent>
+          </Card>
+        </Tabs>
       </div>
 
       {/* Event Modal */}
