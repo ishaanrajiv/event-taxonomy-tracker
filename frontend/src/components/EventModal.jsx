@@ -22,6 +22,20 @@ export default function EventModal({ event, onClose, apiBase }) {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState('ui') // 'ui' or 'json'
   const [jsonText, setJsonText] = useState('')
+  const [features, setFeatures] = useState({ recent: [], all: [], default: 'Engagement' })
+
+  useEffect(() => {
+    // Fetch available features
+    const fetchFeatures = async () => {
+      try {
+        const response = await axios.get(`${apiBase}/features`)
+        setFeatures(response.data)
+      } catch (error) {
+        console.error('Error fetching features:', error)
+      }
+    }
+    fetchFeatures()
+  }, [apiBase])
 
   useEffect(() => {
     if (event) {
@@ -32,8 +46,11 @@ export default function EventModal({ event, onClose, apiBase }) {
         created_by: event.created_by || 'user@example.com'
       })
       setProperties(event.properties || [])
+    } else {
+      // Set default feature for new events
+      setFormData(prev => ({ ...prev, category: features.default }))
     }
-  }, [event])
+  }, [event, features.default])
 
   const checkPropertySuggestions = async (propertyName) => {
     if (propertyName.length < 2) {
@@ -214,22 +231,20 @@ export default function EventModal({ event, onClose, apiBase }) {
             <button
               type="button"
               onClick={() => handleViewModeChange('ui')}
-              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-                viewMode === 'ui'
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${viewMode === 'ui'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               UI Mode
             </button>
             <button
               type="button"
               onClick={() => handleViewModeChange('json')}
-              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-                viewMode === 'json'
+              className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${viewMode === 'json'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               JSON Mode
             </button>
@@ -238,190 +253,212 @@ export default function EventModal({ event, onClose, apiBase }) {
           <form onSubmit={handleSubmit}>
             {viewMode === 'ui' ? (
               <>
-            {/* Event Details */}
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Event Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Content Shared"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows="3"
-                  placeholder="Describe when this event is triggered..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select a category</option>
-                  <option value="Engagement">Engagement</option>
-                  <option value="Navigation">Navigation</option>
-                  <option value="Transaction">Transaction</option>
-                  <option value="User">User</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Properties */}
-            <div className="border-t border-gray-200 pt-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Properties</h3>
-
-              {/* Add Property Form */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative">
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Property Name *
+                {/* Event Details */}
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Event Name *
                     </label>
                     <input
                       type="text"
-                      value={currentProperty.property_name}
-                      onChange={(e) => handlePropertyNameChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g., user_id"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., Content Shared"
                     />
-                    {suggestions.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                        <div className="p-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800">
-                          Similar properties found:
-                        </div>
-                        {suggestions.map((sug, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => selectSuggestion(sug)}
-                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                          >
-                            <div className="text-sm font-medium text-gray-900">{sug.name}</div>
-                            <div className="text-xs text-gray-600">
-                              {sug.data_type} • {Math.round(sug.similarity * 100)}% match
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Property Type
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
                     </label>
-                    <select
-                      value={currentProperty.property_type}
-                      onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="event">Event</option>
-                      <option value="user">User</option>
-                      <option value="super">Super</option>
-                    </select>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows="3"
+                      placeholder="Describe when this event is triggered..."
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Data Type
-                    </label>
-                    <select
-                      value={currentProperty.data_type}
-                      onChange={(e) => setCurrentProperty({ ...currentProperty, data_type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="String">String</option>
-                      <option value="Int">Int</option>
-                      <option value="Float">Float</option>
-                      <option value="Boolean">Boolean</option>
-                      <option value="List">List</option>
-                      <option value="JSON">JSON</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Example Value
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Feature
                     </label>
                     <input
                       type="text"
-                      value={currentProperty.example_value}
-                      onChange={(e) => setCurrentProperty({ ...currentProperty, example_value: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder="e.g., abc123"
+                      list="features-list"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      placeholder="Select or type a custom feature"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={currentProperty.is_required}
-                        onChange={(e) => setCurrentProperty({ ...currentProperty, is_required: e.target.checked })}
-                        className="rounded border-gray-300"
-                      />
-                      <span className="text-sm text-gray-700">Required property</span>
-                    </label>
+                    <datalist id="features-list">
+                      {features.recent.length > 0 && (
+                        <>
+                          <option disabled>── Recently Used ──</option>
+                          {features.recent.map((f) => (
+                            <option key={`recent-${f}`} value={f} />
+                          ))}
+                        </>
+                      )}
+                      {features.all.filter(f => !features.recent.includes(f)).length > 0 && (
+                        <>
+                          <option disabled>── All Features ──</option>
+                          {features.all
+                            .filter(f => !features.recent.includes(f))
+                            .map((f) => (
+                              <option key={`all-${f}`} value={f} />
+                            ))}
+                        </>
+                      )}
+                    </datalist>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {features.recent.length > 0
+                        ? `Recently used: ${features.recent.join(', ')}`
+                        : 'Start typing to add a custom feature'}
+                    </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={addProperty}
-                  className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                >
-                  + Add Property
-                </button>
-              </div>
+                {/* Properties */}
+                <div className="border-t border-gray-200 pt-6 mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Properties</h3>
 
-              {/* Properties List */}
-              {properties.length > 0 && (
-                <div className="space-y-2">
-                  {properties.map((prop) => (
-                    <div key={prop.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
-                      <div className="flex-1">
-                        <span className="font-medium text-gray-900">{prop.property_name}</span>
-                        <span className="mx-2 text-gray-400">•</span>
-                        <span className="text-sm text-gray-600">{prop.property_type}</span>
-                        <span className="mx-2 text-gray-400">•</span>
-                        <span className="text-sm text-gray-600">{prop.data_type}</span>
-                        {prop.is_required && (
-                          <>
-                            <span className="mx-2 text-gray-400">•</span>
-                            <span className="text-xs text-red-600 font-medium">Required</span>
-                          </>
+                  {/* Add Property Form */}
+                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Property Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={currentProperty.property_name}
+                          onChange={(e) => handlePropertyNameChange(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., user_id"
+                        />
+                        {suggestions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                            <div className="p-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800">
+                              Similar properties found:
+                            </div>
+                            {suggestions.map((sug, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => selectSuggestion(sug)}
+                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="text-sm font-medium text-gray-900">{sug.name}</div>
+                                <div className="text-xs text-gray-600">
+                                  {sug.data_type} • {Math.round(sug.similarity * 100)}% match
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeProperty(prop.id)}
-                        className="ml-4 text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Remove
-                      </button>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Property Type
+                        </label>
+                        <select
+                          value={currentProperty.property_type}
+                          onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        >
+                          <option value="event">Event</option>
+                          <option value="user">User</option>
+                          <option value="super">Super</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Data Type
+                        </label>
+                        <select
+                          value={currentProperty.data_type}
+                          onChange={(e) => setCurrentProperty({ ...currentProperty, data_type: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        >
+                          <option value="String">String</option>
+                          <option value="Int">Int</option>
+                          <option value="Float">Float</option>
+                          <option value="Boolean">Boolean</option>
+                          <option value="List">List</option>
+                          <option value="JSON">JSON</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Example Value
+                        </label>
+                        <input
+                          type="text"
+                          value={currentProperty.example_value}
+                          onChange={(e) => setCurrentProperty({ ...currentProperty, example_value: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="e.g., abc123"
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={currentProperty.is_required}
+                            onChange={(e) => setCurrentProperty({ ...currentProperty, is_required: e.target.checked })}
+                            className="rounded border-gray-300"
+                          />
+                          <span className="text-sm text-gray-700">Required property</span>
+                        </label>
+                      </div>
                     </div>
-                  ))}
+
+                    <button
+                      type="button"
+                      onClick={addProperty}
+                      className="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                    >
+                      + Add Property
+                    </button>
+                  </div>
+
+                  {/* Properties List */}
+                  {properties.length > 0 && (
+                    <div className="space-y-2">
+                      {properties.map((prop) => (
+                        <div key={prop.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg">
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-900">{prop.property_name}</span>
+                            <span className="mx-2 text-gray-400">•</span>
+                            <span className="text-sm text-gray-600">{prop.property_type}</span>
+                            <span className="mx-2 text-gray-400">•</span>
+                            <span className="text-sm text-gray-600">{prop.data_type}</span>
+                            {prop.is_required && (
+                              <>
+                                <span className="mx-2 text-gray-400">•</span>
+                                <span className="text-xs text-red-600 font-medium">Required</span>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeProperty(prop.id)}
+                            className="ml-4 text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
               </>
             ) : (
               /* JSON Mode */

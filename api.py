@@ -450,6 +450,34 @@ def search(q: str, db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/features")
+def get_features(db: Session = Depends(get_db)):
+    """Get all unique features with 3 most recently used at the top, rest alphabetically sorted."""
+    # Get all unique features (categories) from events ordered by most recent update
+    recent_events = db.query(Event.category, Event.updated_at).filter(
+        Event.category.isnot(None)
+    ).order_by(Event.updated_at.desc()).all()
+
+    # Track seen features and their most recent update
+    seen = {}
+    for category, updated_at in recent_events:
+        if category and category not in seen:
+            seen[category] = updated_at
+
+    # Sort by most recent update and get top 3
+    sorted_by_recent = sorted(seen.items(), key=lambda x: x[1], reverse=True)
+    recent_features = [f[0] for f in sorted_by_recent[:3]]
+
+    # Get remaining features sorted alphabetically
+    remaining_features = sorted([f for f in seen.keys() if f not in recent_features])
+
+    return {
+        "recent": recent_features,
+        "all": recent_features + remaining_features,
+        "default": "Engagement"
+    }
+
+
 @app.get("/")
 def root():
     return {"message": "Event Taxonomy Tool API", "version": "1.0.0"}

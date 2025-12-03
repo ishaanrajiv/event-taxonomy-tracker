@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.engine import Engine
 from datetime import datetime
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./event_taxonomy.db"
@@ -8,6 +9,18 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///./event_taxonomy.db"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
+
+# Configure SQLite for better concurrency and performance
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging for better concurrency
+    cursor.execute("PRAGMA synchronous=NORMAL")  # Faster while still safe
+    cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
+    cursor.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O for performance
+    cursor.execute("PRAGMA page_size=4096")  # Optimal page size
+    cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
