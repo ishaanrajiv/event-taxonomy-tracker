@@ -146,12 +146,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
               Created From
             </label>
             <input
-              type="date"
+              type="text"
+              placeholder="YYYY-MM-DD"
               value={localFilters.dateFrom ? localFilters.dateFrom.split('T')[0] : ''}
               onChange={handleDateFromChange}
-              min={filterOptions.date_range.min ? filterOptions.date_range.min.split('T')[0] : undefined}
-              max={filterOptions.date_range.max ? filterOptions.date_range.max.split('T')[0] : undefined}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              pattern="\d{4}-\d{2}-\d{2}"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
             />
           </div>
 
@@ -161,12 +161,12 @@ const FilterBar: React.FC<FilterBarProps> = ({
               Created To
             </label>
             <input
-              type="date"
+              type="text"
+              placeholder="YYYY-MM-DD"
               value={localFilters.dateTo ? localFilters.dateTo.split('T')[0] : ''}
               onChange={handleDateToChange}
-              min={filterOptions.date_range.min ? filterOptions.date_range.min.split('T')[0] : undefined}
-              max={filterOptions.date_range.max ? filterOptions.date_range.max.split('T')[0] : undefined}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              pattern="\d{4}-\d{2}-\d{2}"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
             />
           </div>
         </div>
