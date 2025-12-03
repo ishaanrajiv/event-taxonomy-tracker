@@ -171,15 +171,45 @@ export default function EventModal({ event, onClose, apiBase }) {
       }
 
       if (event) {
-        // Update event
+        // Update event metadata
         await axios.put(`${apiBase}/events/${event.id}`, {
           name: formData.name,
           description: formData.description,
           category: formData.category
+        }, {
+          params: { changed_by: formData.created_by }
         })
 
-        // Handle property changes (simplified for POC)
-        // In production, you'd want to diff and update individually
+        // Handle property changes - diff current vs original
+        const originalProps = event.properties || []
+        const currentProps = properties
+
+        // Find properties to remove (in original but not in current)
+        for (const origProp of originalProps) {
+          const stillExists = currentProps.some(cp => cp.id === origProp.id)
+          if (!stillExists) {
+            await axios.delete(`${apiBase}/events/${event.id}/properties/${origProp.id}`, {
+              params: { changed_by: formData.created_by }
+            })
+          }
+        }
+
+        // Find properties to add (in current but not in original)
+        for (const currProp of currentProps) {
+          const isNew = !originalProps.some(op => op.id === currProp.id)
+          if (isNew) {
+            await axios.post(`${apiBase}/events/${event.id}/properties`, {
+              property_name: currProp.property_name,
+              property_type: currProp.property_type,
+              data_type: currProp.data_type,
+              is_required: currProp.is_required,
+              example_value: currProp.example_value,
+              description: currProp.description
+            }, {
+              params: { changed_by: formData.created_by }
+            })
+          }
+        }
       } else {
         // Create event
         await axios.post(`${apiBase}/events`, payload)

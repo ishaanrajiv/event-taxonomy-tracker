@@ -79,7 +79,9 @@ function App() {
     if (!confirm('Are you sure you want to delete this event?')) return
 
     try {
-      await axios.delete(`${API_BASE}/events/${eventId}`)
+      await axios.delete(`${API_BASE}/events/${eventId}`, {
+        params: { changed_by: 'user@example.com' }
+      })
       fetchEvents()
       fetchChangelog()
     } catch (error) {

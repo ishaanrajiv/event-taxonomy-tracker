@@ -191,7 +191,12 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/api/events/{event_id}", response_model=EventResponse)
-def update_event(event_id: int, event_update: EventUpdate, db: Session = Depends(get_db)):
+def update_event(
+    event_id: int,
+    event_update: EventUpdate,
+    changed_by: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """Update an event."""
     db_event = db.query(Event).filter(Event.id == event_id).first()
 
@@ -222,13 +227,13 @@ def update_event(event_id: int, event_update: EventUpdate, db: Session = Depends
         "description": db_event.description,
         "category": db_event.category
     }
-    log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value)
+    log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value, changed_by=changed_by)
 
     return get_event(event_id, db)
 
 
 @app.delete("/api/events/{event_id}")
-def delete_event(event_id: int, db: Session = Depends(get_db)):
+def delete_event(event_id: int, changed_by: Optional[str] = None, db: Session = Depends(get_db)):
     """Delete an event and clean up orphaned properties."""
     db_event = db.query(Event).filter(Event.id == event_id).first()
 
@@ -275,7 +280,7 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
 
     db.commit()
 
-    log_change(db, "event", event_id, "delete", old_value=old_value)
+    log_change(db, "event", event_id, "delete", old_value=old_value, changed_by=changed_by)
 
     return {
         "message": "Event deleted successfully",
@@ -289,6 +294,7 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
 def add_property_to_event(
     event_id: int,
     prop: EventPropertyCreate,
+    changed_by: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Add a property to an event."""
@@ -349,7 +355,8 @@ def add_property_to_event(
                 "required": prop.is_required,
                 "example": prop.example_value
             }
-        }
+        },
+        changed_by=changed_by
     )
 
     return {"message": "Property added successfully", "property_id": property_obj.id}
@@ -359,6 +366,7 @@ def add_property_to_event(
 def remove_property_from_event(
     event_id: int,
     event_property_id: int,
+    changed_by: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Remove a property from an event."""
@@ -388,7 +396,8 @@ def remove_property_from_event(
         old_value={
             "action": "property_removed",
             "property": property_info
-        }
+        },
+        changed_by=changed_by
     )
 
     return {"message": "Property removed successfully"}
