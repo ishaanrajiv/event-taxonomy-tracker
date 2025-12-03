@@ -16,6 +16,15 @@ export default function Changelog({ changelog }) {
     return value
   }
 
+  const getEntityName = (entry) => {
+    // For events, try to get the event name
+    if (entry.entity_type === 'event') {
+      const name = entry.new_value?.name || entry.old_value?.name
+      return name ? `"${name}"` : `#${entry.entity_id}`
+    }
+    return `#${entry.entity_id}`
+  }
+
   const getChangeSummary = (entry) => {
     // For property add/remove actions
     if (entry.new_value?.action === 'property_added') {
@@ -67,7 +76,7 @@ export default function Changelog({ changelog }) {
                       {entry.action.toUpperCase()}
                     </span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {entry.entity_type} #{entry.entity_id}
+                      {entry.entity_type} {getEntityName(entry)}
                     </span>
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">

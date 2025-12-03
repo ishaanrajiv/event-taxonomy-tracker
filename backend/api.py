@@ -211,23 +211,28 @@ def update_event(
     }
 
     # Update fields
-    if event_update.name is not None:
+    has_changes = False
+    if event_update.name is not None and event_update.name != db_event.name:
         db_event.name = event_update.name
-    if event_update.description is not None:
+        has_changes = True
+    if event_update.description is not None and event_update.description != db_event.description:
         db_event.description = event_update.description
-    if event_update.category is not None:
+        has_changes = True
+    if event_update.category is not None and event_update.category != db_event.category:
         db_event.category = event_update.category
+        has_changes = True
 
     db.commit()
     db.refresh(db_event)
 
-    # Log update
-    new_value = {
-        "name": db_event.name,
-        "description": db_event.description,
-        "category": db_event.category
-    }
-    log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value, changed_by=changed_by)
+    # Only log if there were actual changes to event metadata
+    if has_changes:
+        new_value = {
+            "name": db_event.name,
+            "description": db_event.description,
+            "category": db_event.category
+        }
+        log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value, changed_by=changed_by)
 
     return get_event(event_id, db)
 
