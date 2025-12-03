@@ -173,7 +173,7 @@ def seed_database():
             print(f"❌ Error creating event {event['name']}: {str(e)}")
 
     print("\n✨ Seeding complete!")
-    print(f"📊 Visit http://localhost:5173 to view the application")
+    print("📊 Visit http://localhost:5173 to view the application")
 
 if __name__ == "__main__":
     seed_database()
