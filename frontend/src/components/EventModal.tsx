@@ -1,41 +1,65 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useState, useEffect, FormEvent, MouseEvent, ChangeEvent } from 'react';
+import axios from 'axios';
+import { Event, EventPropertyCreate, PropertySuggestion, FeaturesResponse } from '../types/api';
 
-export default function EventModal({ event, onClose, apiBase }) {
-  const [formData, setFormData] = useState({
+interface EventModalProps {
+  event: Event | null;
+  onClose: (refresh: boolean) => void;
+  apiBase: string;
+}
+
+interface FormData {
+  name: string;
+  description: string;
+  category: string;
+  created_by: string;
+}
+
+interface PropertyFormData extends EventPropertyCreate {
+  id?: number;
+}
+
+type ViewMode = 'ui' | 'json';
+
+export default function EventModal({ event, onClose, apiBase }: EventModalProps) {
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
     category: '',
     created_by: 'user@example.com'
-  })
-  const [properties, setProperties] = useState([])
-  const [suggestions, setSuggestions] = useState([])
-  const [currentProperty, setCurrentProperty] = useState({
+  });
+  const [properties, setProperties] = useState<PropertyFormData[]>([]);
+  const [suggestions, setSuggestions] = useState<PropertySuggestion[]>([]);
+  const [currentProperty, setCurrentProperty] = useState<PropertyFormData>({
     property_name: '',
     property_type: 'event',
     data_type: 'String',
     is_required: false,
     example_value: '',
     description: ''
-  })
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [viewMode, setViewMode] = useState('ui') // 'ui' or 'json'
-  const [jsonText, setJsonText] = useState('')
-  const [features, setFeatures] = useState({ recent: [], all: [], default: 'Engagement' })
+  });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('ui');
+  const [jsonText, setJsonText] = useState('');
+  const [features, setFeatures] = useState<FeaturesResponse & { recent: string[]; all: string[]; default: string }>({
+    recent: [],
+    all: [],
+    default: 'Engagement'
+  });
 
   useEffect(() => {
     // Fetch available features
     const fetchFeatures = async () => {
       try {
-        const response = await axios.get(`${apiBase}/features`)
-        setFeatures(response.data)
+        const response = await axios.get<FeaturesResponse & { recent: string[]; all: string[]; default: string }>(`${apiBase}/features`);
+        setFeatures(response.data);
       } catch (error) {
-        console.error('Error fetching features:', error)
+        console.error('Error fetching features:', error);
       }
-    }
-    fetchFeatures()
-  }, [apiBase])
+    };
+    fetchFeatures();
+  }, [apiBase]);
 
   useEffect(() => {
     if (event) {
@@ -44,57 +68,57 @@ export default function EventModal({ event, onClose, apiBase }) {
         description: event.description || '',
         category: event.category || '',
         created_by: event.created_by || 'user@example.com'
-      })
-      setProperties(event.properties || [])
+      });
+      setProperties(event.properties || []);
     } else {
       // Set default feature for new events
-      setFormData(prev => ({ ...prev, category: features.default }))
+      setFormData(prev => ({ ...prev, category: features.default }));
     }
-  }, [event, features.default])
+  }, [event, features.default]);
 
-  const checkPropertySuggestions = async (propertyName) => {
+  const checkPropertySuggestions = async (propertyName: string) => {
     if (propertyName.length < 2) {
-      setSuggestions([])
-      return
+      setSuggestions([]);
+      return;
     }
 
     try {
-      const response = await axios.get(`${apiBase}/properties/suggest`, {
+      const response = await axios.get<{ suggestions: PropertySuggestion[] }>(`${apiBase}/properties/suggest`, {
         params: { q: propertyName }
-      })
-      setSuggestions(response.data.suggestions || [])
+      });
+      setSuggestions(response.data.suggestions || []);
     } catch (error) {
-      console.error('Error fetching suggestions:', error)
+      console.error('Error fetching suggestions:', error);
     }
-  }
+  };
 
-  const handlePropertyNameChange = (value) => {
-    setCurrentProperty({ ...currentProperty, property_name: value })
-    checkPropertySuggestions(value)
-  }
+  const handlePropertyNameChange = (value: string) => {
+    setCurrentProperty({ ...currentProperty, property_name: value });
+    checkPropertySuggestions(value);
+  };
 
-  const selectSuggestion = (suggestion) => {
+  const selectSuggestion = (suggestion: PropertySuggestion) => {
     setCurrentProperty({
       ...currentProperty,
       property_name: suggestion.name,
       data_type: suggestion.data_type
-    })
-    setSuggestions([])
-  }
+    });
+    setSuggestions([]);
+  };
 
   const addProperty = () => {
     if (!currentProperty.property_name) {
-      alert('Property name is required')
-      return
+      alert('Property name is required');
+      return;
     }
 
     // Check for duplicates
     if (properties.some(p => p.property_name === currentProperty.property_name && p.property_type === currentProperty.property_type)) {
-      alert('This property is already added')
-      return
+      alert('This property is already added');
+      return;
     }
 
-    setProperties([...properties, { ...currentProperty, id: Date.now() }])
+    setProperties([...properties, { ...currentProperty, id: Date.now() }]);
     setCurrentProperty({
       property_name: '',
       property_type: 'event',
@@ -102,13 +126,13 @@ export default function EventModal({ event, onClose, apiBase }) {
       is_required: false,
       example_value: '',
       description: ''
-    })
-    setSuggestions([])
-  }
+    });
+    setSuggestions([]);
+  };
 
-  const removeProperty = (propId) => {
-    setProperties(properties.filter(p => p.id !== propId))
-  }
+  const removeProperty = (propId: number | undefined) => {
+    setProperties(properties.filter(p => p.id !== propId));
+  };
 
   const syncToJson = () => {
     const eventObj = {
@@ -123,39 +147,39 @@ export default function EventModal({ event, onClose, apiBase }) {
         example_value: p.example_value,
         description: p.description
       }))
-    }
-    setJsonText(JSON.stringify(eventObj, null, 2))
-  }
+    };
+    setJsonText(JSON.stringify(eventObj, null, 2));
+  };
 
   const syncFromJson = () => {
     try {
-      const parsed = JSON.parse(jsonText)
+      const parsed = JSON.parse(jsonText);
       setFormData({
         name: parsed.name || '',
         description: parsed.description || '',
         category: parsed.category || '',
         created_by: formData.created_by
-      })
-      setProperties((parsed.properties || []).map((p, idx) => ({ ...p, id: Date.now() + idx })))
-      setError('')
+      });
+      setProperties((parsed.properties || []).map((p: EventPropertyCreate, idx: number) => ({ ...p, id: Date.now() + idx })));
+      setError('');
     } catch (e) {
-      setError('Invalid JSON format')
+      setError('Invalid JSON format');
     }
-  }
+  };
 
-  const handleViewModeChange = (mode) => {
+  const handleViewModeChange = (mode: ViewMode) => {
     if (mode === 'json' && viewMode === 'ui') {
-      syncToJson()
+      syncToJson();
     } else if (mode === 'ui' && viewMode === 'json') {
-      syncFromJson()
+      syncFromJson();
     }
-    setViewMode(mode)
-  }
+    setViewMode(mode);
+  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSaving(true)
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
 
     try {
       const payload = {
@@ -168,14 +192,14 @@ export default function EventModal({ event, onClose, apiBase }) {
           example_value: p.example_value,
           description: p.description
         }))
-      }
+      };
 
       if (event) {
         // Update event metadata only if changed
         const metadataChanged =
           formData.name !== event.name ||
           formData.description !== event.description ||
-          formData.category !== event.category
+          formData.category !== event.category;
 
         if (metadataChanged) {
           await axios.put(`${apiBase}/events/${event.id}`, {
@@ -184,26 +208,26 @@ export default function EventModal({ event, onClose, apiBase }) {
             category: formData.category
           }, {
             params: { changed_by: formData.created_by }
-          })
+          });
         }
 
         // Handle property changes - diff current vs original
-        const originalProps = event.properties || []
-        const currentProps = properties
+        const originalProps = event.properties || [];
+        const currentProps = properties;
 
         // Find properties to remove (in original but not in current)
         for (const origProp of originalProps) {
-          const stillExists = currentProps.some(cp => cp.id === origProp.id)
+          const stillExists = currentProps.some(cp => cp.id === origProp.id);
           if (!stillExists) {
             await axios.delete(`${apiBase}/events/${event.id}/properties/${origProp.id}`, {
               params: { changed_by: formData.created_by }
-            })
+            });
           }
         }
 
         // Find properties to add (in current but not in original)
         for (const currProp of currentProps) {
-          const isNew = !originalProps.some(op => op.id === currProp.id)
+          const isNew = !originalProps.some(op => op.id === currProp.id);
           if (isNew) {
             await axios.post(`${apiBase}/events/${event.id}/properties`, {
               property_name: currProp.property_name,
@@ -214,29 +238,29 @@ export default function EventModal({ event, onClose, apiBase }) {
               description: currProp.description
             }, {
               params: { changed_by: formData.created_by }
-            })
+            });
           }
         }
       } else {
         // Create event
-        await axios.post(`${apiBase}/events`, payload)
+        await axios.post(`${apiBase}/events`, payload);
       }
 
-      onClose(true) // true = refresh data
+      onClose(true); // true = refresh data
     } catch (error) {
-      console.error('Error saving event:', error)
-      setError(error.response?.data?.detail || 'Failed to save event')
+      console.error('Error saving event:', error);
+      setError(axios.isAxiosError(error) ? error.response?.data?.detail || 'Failed to save event' : 'Failed to save event');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      onClick={(e) => {
+      onClick={(e: MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) {
-          onClose(false)
+          onClose(false);
         }
       }}
     >
@@ -314,7 +338,7 @@ export default function EventModal({ event, onClose, apiBase }) {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      rows="3"
+                      rows={3}
                       placeholder="Describe when this event is triggered..."
                     />
                   </div>
@@ -404,7 +428,7 @@ export default function EventModal({ event, onClose, apiBase }) {
                         </label>
                         <select
                           value={currentProperty.property_type}
-                          onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value })}
+                          onChange={(e) => setCurrentProperty({ ...currentProperty, property_type: e.target.value as 'event' | 'user' | 'super' })}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                         >
                           <option value="event">Event</option>
@@ -506,7 +530,7 @@ export default function EventModal({ event, onClose, apiBase }) {
                   </label>
                   <textarea
                     value={jsonText}
-                    onChange={(e) => setJsonText(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setJsonText(e.target.value)}
                     className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder={`{
   "name": "Event Name",
@@ -552,5 +576,5 @@ export default function EventModal({ event, onClose, apiBase }) {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,61 +1,74 @@
-import { useState } from 'react'
-import axios from 'axios'
+import { useState, ChangeEvent } from 'react';
+import axios from 'axios';
 
-export default function BulkImport({ apiBase, onImportComplete }) {
-  const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState(null)
+interface BulkImportProps {
+  apiBase: string;
+  onImportComplete: () => void;
+}
 
-  const downloadTemplate = async (format) => {
+interface ImportResult {
+  imported: number;
+  total: number;
+  errors?: string[];
+}
+
+type FileFormat = 'json' | 'csv';
+
+export default function BulkImport({ apiBase, onImportComplete }: BulkImportProps) {
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  const downloadTemplate = async (format: FileFormat) => {
     try {
       const response = await axios.get(`${apiBase}/export/template/${format}`, {
         responseType: 'blob'
-      })
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `event_template.${format}`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `event_template.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (error) {
-      console.error('Error downloading template:', error)
-      alert('Failed to download template')
+      console.error('Error downloading template:', error);
+      alert('Failed to download template');
     }
-  }
+  };
 
-  const handleFileUpload = async (event, format) => {
-    const file = event.target.files[0]
-    if (!file) return
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>, format: FileFormat) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    setImporting(true)
-    setResult(null)
+    setImporting(true);
+    setResult(null);
 
-    const formData = new FormData()
-    formData.append('file', file)
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-      const response = await axios.post(`${apiBase}/import/${format}`, formData, {
+      const response = await axios.post<ImportResult>(`${apiBase}/import/${format}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      });
 
-      setResult(response.data)
+      setResult(response.data);
       if (response.data.imported > 0) {
         setTimeout(() => {
-          onImportComplete()
-        }, 2000)
+          onImportComplete();
+        }, 2000);
       }
     } catch (error) {
-      console.error('Error importing file:', error)
+      console.error('Error importing file:', error);
       setResult({
         imported: 0,
         total: 0,
-        errors: [error.response?.data?.detail || 'Failed to import file']
-      })
+        errors: [axios.isAxiosError(error) ? error.response?.data?.detail || 'Failed to import file' : 'Failed to import file']
+      });
     } finally {
-      setImporting(false)
-      event.target.value = null
+      setImporting(false);
+      event.target.value = '';
     }
-  }
+  };
 
   return (
     <div className="p-6">
@@ -166,5 +179,5 @@ export default function BulkImport({ apiBase, onImportComplete }) {
         </ul>
       </div>
     </div>
-  )
+  );
 }

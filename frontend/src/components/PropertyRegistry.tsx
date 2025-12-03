@@ -1,4 +1,10 @@
-export default function PropertyRegistry({ properties }) {
+import { Property } from '../types/api';
+
+interface PropertyRegistryProps {
+  properties: Property[];
+}
+
+export default function PropertyRegistry({ properties }: PropertyRegistryProps) {
   return (
     <div className="p-6">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -61,5 +67,5 @@ export default function PropertyRegistry({ properties }) {
         </div>
       )}
     </div>
-  )
+  );
 }

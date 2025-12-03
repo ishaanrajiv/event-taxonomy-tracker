@@ -1,28 +1,39 @@
-import { useState } from 'react'
+import { useState } from 'react';
+import { Event } from '../types/api';
 
-export default function EventList({ events, loading, onCreateEvent, onEditEvent, onDeleteEvent }) {
-  const [expandedEvent, setExpandedEvent] = useState(null)
+interface EventListProps {
+  events: Event[];
+  loading: boolean;
+  onCreateEvent: () => void;
+  onEditEvent: (event: Event) => void;
+  onDeleteEvent: (id: number) => void;
+}
 
-  const toggleEvent = (eventId) => {
-    setExpandedEvent(expandedEvent === eventId ? null : eventId)
-  }
+type CategoryType = 'Engagement' | 'Navigation' | 'Transaction' | 'User';
 
-  const getCategoryColor = (category) => {
-    const colors = {
+export default function EventList({ events, loading, onCreateEvent, onEditEvent, onDeleteEvent }: EventListProps) {
+  const [expandedEvent, setExpandedEvent] = useState<number | null>(null);
+
+  const toggleEvent = (eventId: number) => {
+    setExpandedEvent(expandedEvent === eventId ? null : eventId);
+  };
+
+  const getCategoryColor = (category: string | null | undefined): string => {
+    const colors: Record<CategoryType, string> = {
       'Engagement': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
       'Navigation': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       'Transaction': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
       'User': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    }
-    return colors[category] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-  }
+    };
+    return colors[category as CategoryType] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+  };
 
   if (loading) {
     return (
       <div className="p-8 text-center text-gray-500 dark:text-gray-400">
         Loading events...
       </div>
-    )
+    );
   }
 
   return (
@@ -74,8 +85,8 @@ export default function EventList({ events, loading, onCreateEvent, onEditEvent,
                   <div className="flex gap-2 ml-4">
                     <button
                       onClick={(e) => {
-                        e.stopPropagation()
-                        onEditEvent(event)
+                        e.stopPropagation();
+                        onEditEvent(event);
                       }}
                       className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition"
                     >
@@ -83,8 +94,8 @@ export default function EventList({ events, loading, onCreateEvent, onEditEvent,
                     </button>
                     <button
                       onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteEvent(event.id)
+                        e.stopPropagation();
+                        onDeleteEvent(event.id);
                       }}
                       className="px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                     >
@@ -150,5 +161,5 @@ export default function EventList({ events, loading, onCreateEvent, onEditEvent,
         </div>
       )}
     </div>
-  )
+  );
 }

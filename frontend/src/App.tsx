@@ -1,104 +1,107 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import EventList from './components/EventList'
-import EventModal from './components/EventModal'
-import PropertyRegistry from './components/PropertyRegistry'
-import Changelog from './components/Changelog'
-import BulkImport from './components/BulkImport'
-import { useDarkMode } from './hooks/useDarkMode'
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import EventList from './components/EventList';
+import EventModal from './components/EventModal';
+import PropertyRegistry from './components/PropertyRegistry';
+import Changelog from './components/Changelog';
+import BulkImport from './components/BulkImport';
+import { useDarkMode } from './hooks/useDarkMode';
+import { Event, Property, ChangelogEntry } from './types/api';
 
-const API_BASE = 'http://localhost:8000/api'
+const API_BASE = 'http://localhost:8000/api';
+
+type TabType = 'events' | 'properties' | 'changelog' | 'import';
 
 function App() {
-  const [isDarkMode, setIsDarkMode] = useDarkMode()
-  const [activeTab, setActiveTab] = useState('events')
-  const [events, setEvents] = useState([])
-  const [properties, setProperties] = useState([])
-  const [changelog, setChangelog] = useState([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingEvent, setEditingEvent] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useDarkMode();
+  const [activeTab, setActiveTab] = useState<TabType>('events');
+  const [events, setEvents] = useState<Event[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const fetchEvents = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE}/events`, {
+      const response = await axios.get<Event[]>(`${API_BASE}/events`, {
         params: searchQuery ? { q: searchQuery } : {}
-      })
-      setEvents(response.data)
+      });
+      setEvents(response.data);
     } catch (error) {
-      console.error('Error fetching events:', error)
+      console.error('Error fetching events:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchProperties = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/properties`)
-      setProperties(response.data)
+      const response = await axios.get<Property[]>(`${API_BASE}/properties`);
+      setProperties(response.data);
     } catch (error) {
-      console.error('Error fetching properties:', error)
+      console.error('Error fetching properties:', error);
     }
-  }
+  };
 
   const fetchChangelog = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/changelog`)
-      setChangelog(response.data)
+      const response = await axios.get<ChangelogEntry[]>(`${API_BASE}/changelog`);
+      setChangelog(response.data);
     } catch (error) {
-      console.error('Error fetching changelog:', error)
+      console.error('Error fetching changelog:', error);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchEvents()
-    fetchProperties()
-    fetchChangelog()
-  }, [])
+    fetchEvents();
+    fetchProperties();
+    fetchChangelog();
+  }, []);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
-      fetchEvents()
-    }, 300)
-    return () => clearTimeout(debounce)
-  }, [searchQuery])
+      fetchEvents();
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
 
   const handleCreateEvent = () => {
-    setEditingEvent(null)
-    setIsModalOpen(true)
-  }
+    setEditingEvent(null);
+    setIsModalOpen(true);
+  };
 
-  const handleEditEvent = (event) => {
-    setEditingEvent(event)
-    setIsModalOpen(true)
-  }
+  const handleEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setIsModalOpen(true);
+  };
 
-  const handleDeleteEvent = async (eventId) => {
-    if (!confirm('Are you sure you want to delete this event?')) return
+  const handleDeleteEvent = async (eventId: number) => {
+    if (!confirm('Are you sure you want to delete this event?')) return;
 
     try {
       await axios.delete(`${API_BASE}/events/${eventId}`, {
         params: { changed_by: 'user@example.com' }
-      })
-      fetchEvents()
-      fetchChangelog()
+      });
+      fetchEvents();
+      fetchChangelog();
     } catch (error) {
-      console.error('Error deleting event:', error)
-      alert('Failed to delete event')
+      console.error('Error deleting event:', error);
+      alert('Failed to delete event');
     }
-  }
+  };
 
-  const handleModalClose = (shouldRefresh) => {
-    setIsModalOpen(false)
-    setEditingEvent(null)
+  const handleModalClose = (shouldRefresh: boolean) => {
+    setIsModalOpen(false);
+    setEditingEvent(null);
     if (shouldRefresh) {
-      fetchEvents()
-      fetchProperties()
-      fetchChangelog()
+      fetchEvents();
+      fetchProperties();
+      fetchChangelog();
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -197,7 +200,7 @@ function App() {
             />
           )}
           {activeTab === 'properties' && (
-            <PropertyRegistry properties={properties} onRefresh={fetchProperties} />
+            <PropertyRegistry properties={properties} />
           )}
           {activeTab === 'changelog' && (
             <Changelog changelog={changelog} />
@@ -206,10 +209,10 @@ function App() {
             <BulkImport
               apiBase={API_BASE}
               onImportComplete={() => {
-                fetchEvents()
-                fetchProperties()
-                fetchChangelog()
-                setActiveTab('events')
+                fetchEvents();
+                fetchProperties();
+                fetchChangelog();
+                setActiveTab('events');
               }}
             />
           )}
@@ -225,7 +228,7 @@ function App() {
         />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
