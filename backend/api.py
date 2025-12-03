@@ -113,6 +113,9 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
     db.add(db_event)
     db.flush()
 
+    # Collect properties for changelog
+    properties_data = []
+
     # Add properties
     for prop_create in event.properties:
         # Check if property exists
@@ -126,7 +129,7 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
                     detail=f"Property '{prop_create.property_name}' already exists with data type '{property_obj.data_type}'. Cannot redefine as '{prop_create.data_type}'."
                 )
         else:
-            # Create new property
+            # Create new property (no logging here - it's logged as part of event creation)
             property_obj = Property(
                 name=prop_create.property_name,
                 data_type=prop_create.data_type,
@@ -135,13 +138,6 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
             )
             db.add(property_obj)
             db.flush()
-
-            # Log property creation
-            log_change(
-                db, "property", property_obj.id, "create",
-                new_value={"name": property_obj.name, "data_type": property_obj.data_type},
-                changed_by=event.created_by
-            )
 
         # Create event-property association
         event_property = EventProperty(
@@ -153,13 +149,27 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
         )
         db.add(event_property)
 
+        # Add to changelog data
+        properties_data.append({
+            "name": prop_create.property_name,
+            "type": prop_create.property_type,
+            "data_type": prop_create.data_type,
+            "required": prop_create.is_required,
+            "example": prop_create.example_value
+        })
+
     db.commit()
     db.refresh(db_event)
 
-    # Log event creation
+    # Log single event creation with all properties
     log_change(
         db, "event", db_event.id, "create",
-        new_value={"name": db_event.name, "description": db_event.description, "category": db_event.category},
+        new_value={
+            "name": db_event.name,
+            "description": db_event.description,
+            "category": db_event.category,
+            "properties": properties_data
+        },
         changed_by=event.created_by
     )
 
@@ -225,10 +235,22 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    # Collect event data with properties for changelog
+    properties_data = []
+    for ep in db_event.event_properties:
+        properties_data.append({
+            "name": ep.property.name,
+            "type": ep.property_type,
+            "data_type": ep.property.data_type,
+            "required": ep.is_required,
+            "example": ep.example_value
+        })
+
     old_value = {
         "name": db_event.name,
         "description": db_event.description,
-        "category": db_event.category
+        "category": db_event.category,
+        "properties": properties_data
     }
 
     # Get property IDs associated with this event before deletion
@@ -239,6 +261,7 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     # Clean up orphaned properties (properties not linked to any event)
+    # Note: We don't log these separately - they're part of the event deletion
     orphaned_count = 0
     for prop_id in property_ids:
         # Check if this property is still linked to any event
@@ -247,11 +270,6 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
             # Property is orphaned, delete it
             orphaned_prop = db.query(Property).filter(Property.id == prop_id).first()
             if orphaned_prop:
-                log_change(
-                    db, "property", prop_id, "delete",
-                    old_value={"name": orphaned_prop.name, "data_type": orphaned_prop.data_type},
-                    changed_by="system (cleanup)"
-                )
                 db.delete(orphaned_prop)
                 orphaned_count += 1
 
@@ -289,7 +307,7 @@ def add_property_to_event(
                 detail=f"Property '{prop.property_name}' already exists with data type '{property_obj.data_type}'. Cannot redefine as '{prop.data_type}'."
             )
     else:
-        # Create new property
+        # Create new property (no separate logging - logged as part of event change)
         property_obj = Property(
             name=prop.property_name,
             data_type=prop.data_type,
@@ -297,11 +315,6 @@ def add_property_to_event(
         )
         db.add(property_obj)
         db.flush()
-
-        log_change(
-            db, "property", property_obj.id, "create",
-            new_value={"name": property_obj.name, "data_type": property_obj.data_type}
-        )
 
     # Check if association already exists
     existing = db.query(EventProperty).filter(
@@ -324,12 +337,18 @@ def add_property_to_event(
     db.add(event_property)
     db.commit()
 
+    # Log as event update - property added
     log_change(
-        db, "event_property", event_property.id, "create",
+        db, "event", event_id, "update",
         new_value={
-            "event_id": event_id,
-            "property_id": property_obj.id,
-            "property_type": prop.property_type
+            "action": "property_added",
+            "property": {
+                "name": prop.property_name,
+                "type": prop.property_type,
+                "data_type": prop.data_type,
+                "required": prop.is_required,
+                "example": prop.example_value
+            }
         }
     )
 
@@ -351,16 +370,26 @@ def remove_property_from_event(
     if not event_property:
         raise HTTPException(status_code=404, detail="Event property association not found")
 
-    old_value = {
-        "event_id": event_property.event_id,
-        "property_id": event_property.property_id,
-        "property_type": event_property.property_type
+    # Capture property info for changelog
+    property_info = {
+        "name": event_property.property.name,
+        "type": event_property.property_type,
+        "data_type": event_property.property.data_type,
+        "required": event_property.is_required,
+        "example": event_property.example_value
     }
 
     db.delete(event_property)
     db.commit()
 
-    log_change(db, "event_property", event_property_id, "delete", old_value=old_value)
+    # Log as event update - property removed
+    log_change(
+        db, "event", event_id, "update",
+        old_value={
+            "action": "property_removed",
+            "property": property_info
+        }
+    )
 
     return {"message": "Property removed successfully"}
 
