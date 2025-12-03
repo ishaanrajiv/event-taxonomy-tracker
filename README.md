@@ -1,6 +1,6 @@
 # Event Taxonomy Tracker
 
-A weekend POC for managing analytics event taxonomies with property registry, conflict detection, and automatic changelog.
+A simple POC for managing analytics event taxonomies with property registry, conflict detection, and automatic changelog.
 
 ## Security Notice
 
