@@ -215,7 +215,7 @@ def update_event(event_id: int, event_update: EventUpdate, db: Session = Depends
 
 @app.delete("/api/events/{event_id}")
 def delete_event(event_id: int, db: Session = Depends(get_db)):
-    """Delete an event."""
+    """Delete an event and clean up orphaned properties."""
     db_event = db.query(Event).filter(Event.id == event_id).first()
 
     if not db_event:
@@ -227,12 +227,38 @@ def delete_event(event_id: int, db: Session = Depends(get_db)):
         "category": db_event.category
     }
 
+    # Get property IDs associated with this event before deletion
+    property_ids = [ep.property_id for ep in db_event.event_properties]
+
+    # Delete the event (cascade will delete event_properties)
     db.delete(db_event)
+    db.commit()
+
+    # Clean up orphaned properties (properties not linked to any event)
+    orphaned_count = 0
+    for prop_id in property_ids:
+        # Check if this property is still linked to any event
+        is_linked = db.query(EventProperty).filter(EventProperty.property_id == prop_id).first()
+        if not is_linked:
+            # Property is orphaned, delete it
+            orphaned_prop = db.query(Property).filter(Property.id == prop_id).first()
+            if orphaned_prop:
+                log_change(
+                    db, "property", prop_id, "delete",
+                    old_value={"name": orphaned_prop.name, "data_type": orphaned_prop.data_type},
+                    changed_by="system (cleanup)"
+                )
+                db.delete(orphaned_prop)
+                orphaned_count += 1
+
     db.commit()
 
     log_change(db, "event", event_id, "delete", old_value=old_value)
 
-    return {"message": "Event deleted successfully"}
+    return {
+        "message": "Event deleted successfully",
+        "orphaned_properties_cleaned": orphaned_count
+    }
 
 
 # ========== EVENT PROPERTY ENDPOINTS ==========

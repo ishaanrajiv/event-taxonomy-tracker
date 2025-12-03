@@ -134,12 +134,30 @@ export default function EventModal({ event, onClose, apiBase }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose(false)
+        }
+      }}
+    >
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            {event ? 'Edit Event' : 'Create New Event'}
-          </h2>
+          <div className="flex items-start justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {event ? 'Edit Event' : 'Create New Event'}
+            </h2>
+            <button
+              onClick={() => onClose(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              aria-label="Close"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
