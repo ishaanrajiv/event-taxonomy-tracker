@@ -116,8 +116,29 @@ export interface BulkImportResponse {
 export interface EventsQueryParams {
   q?: string;
   category?: string;
+  created_by?: string;
+  date_from?: string;
+  date_to?: string;
 }
 
 export interface PropertySuggestionsParams {
   name: string;
+}
+
+// Filter options
+export interface FilterOptions {
+  categories: string[];
+  creators: string[];
+  date_range: {
+    min: string | null;
+    max: string | null;
+  };
+}
+
+// Active filters
+export interface ActiveFilters {
+  category?: string;
+  creator?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }

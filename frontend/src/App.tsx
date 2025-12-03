@@ -5,8 +5,9 @@ import EventModal from './components/EventModal';
 import PropertyRegistry from './components/PropertyRegistry';
 import Changelog from './components/Changelog';
 import BulkImport from './components/BulkImport';
+import FilterBar from './components/FilterBar';
 import { useDarkMode } from './hooks/useDarkMode';
-import { Event, Property, ChangelogEntry } from './types/api';
+import { Event, Property, ChangelogEntry, FilterOptions, ActiveFilters } from './types/api';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -19,6 +20,13 @@ function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<ActiveFilters>({});
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    categories: [],
+    creators: [],
+    date_range: { min: null, max: null }
+  });
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,14 +34,28 @@ function App() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const response = await axios.get<Event[]>(`${API_BASE}/events`, {
-        params: searchQuery ? { q: searchQuery } : {}
-      });
+      const params: any = {};
+      if (searchQuery) params.q = searchQuery;
+      if (filters.category) params.category = filters.category;
+      if (filters.creator) params.created_by = filters.creator;
+      if (filters.dateFrom) params.date_from = filters.dateFrom;
+      if (filters.dateTo) params.date_to = filters.dateTo;
+
+      const response = await axios.get<Event[]>(`${API_BASE}/events`, { params });
       setEvents(response.data);
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      const response = await axios.get<FilterOptions>(`${API_BASE}/filter-options`);
+      setFilterOptions(response.data);
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
     }
   };
 
@@ -59,6 +81,7 @@ function App() {
     fetchEvents();
     fetchProperties();
     fetchChangelog();
+    fetchFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -66,7 +89,7 @@ function App() {
       fetchEvents();
     }, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery]);
+  }, [searchQuery, filters]);
 
   const handleCreateEvent = () => {
     setEditingEvent(null);
@@ -132,15 +155,34 @@ function App() {
         </div>
 
         {/* Search Bar */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search events..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+        <div className="mb-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search events (name, category, description, properties, creator...)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <svg
+              className="absolute left-3 top-3 w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
         </div>
+
+        {/* Filter Bar */}
+        <FilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          filterOptions={filterOptions}
+          onToggle={() => setIsFilterExpanded(!isFilterExpanded)}
+          isExpanded={isFilterExpanded}
+        />
 
         {/* Tabs */}
         <div className="mb-6 border-b border-gray-200 dark:border-gray-700">

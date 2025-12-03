@@ -2,7 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_, func
 from typing import List, Optional
+from datetime import datetime
 import json
 import csv
 import io
@@ -54,22 +56,43 @@ def log_change(db: Session, entity_type: str, entity_id: int, action: str,
 def list_events(
     q: Optional[str] = None,
     category: Optional[str] = None,
+    created_by: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """List all events with optional search and category filter."""
-    query = db.query(Event)
+    """List all events with optional search and filters.
 
-    if q:
-        query = query.filter(
-            (Event.name.ilike(f"%{q}%")) | (Event.description.ilike(f"%{q}%"))
-        )
+    Search includes: event name, category, description, property names with relevance ranking.
+    Filters: category, created_by, date range.
+    """
+    # Start with base query
+    base_query = db.query(Event)
 
+    # Apply filters first (non-search)
     if category:
-        query = query.filter(Event.category == category)
+        base_query = base_query.filter(Event.category == category)
 
-    events = query.all()
+    if created_by:
+        base_query = base_query.filter(Event.created_by.ilike(f"%{created_by}%"))
 
-    # Format response with properties
+    if date_from:
+        try:
+            date_from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+            base_query = base_query.filter(Event.created_at >= date_from_dt)
+        except ValueError:
+            pass  # Invalid date format, skip filter
+
+    if date_to:
+        try:
+            date_to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+            base_query = base_query.filter(Event.created_at <= date_to_dt)
+        except ValueError:
+            pass  # Invalid date format, skip filter
+
+    events = base_query.all()
+
+    # Format response with properties and calculate search relevance
     result = []
     for event in events:
         event_dict = {
@@ -96,6 +119,60 @@ def list_events(
             })
 
         result.append(event_dict)
+
+    # Apply search with relevance ranking if query provided
+    if q:
+        search_term = q.lower()
+        scored_results = []
+
+        for event_dict in result:
+            score = 0
+
+            # Event name (highest priority - score: 100)
+            if search_term in event_dict["name"].lower():
+                score += 100
+                # Boost for exact match
+                if event_dict["name"].lower() == search_term:
+                    score += 50
+
+            # Category/Feature (score: 75)
+            if event_dict["category"] and search_term in event_dict["category"].lower():
+                score += 75
+                if event_dict["category"].lower() == search_term:
+                    score += 25
+
+            # Event description (score: 50)
+            if event_dict["description"] and search_term in event_dict["description"].lower():
+                score += 50
+
+            # Property names (score: 30 per match)
+            for prop in event_dict["properties"]:
+                if search_term in prop["property_name"].lower():
+                    score += 30
+                    if prop["property_name"].lower() == search_term:
+                        score += 10
+
+            # Property descriptions (score: 20 per match)
+            for prop in event_dict["properties"]:
+                if prop["description"] and search_term in prop["description"].lower():
+                    score += 20
+
+            # Property data types (score: 10)
+            for prop in event_dict["properties"]:
+                if search_term in prop["data_type"].lower():
+                    score += 10
+
+            # Creator (score: 15)
+            if event_dict["created_by"] and search_term in event_dict["created_by"].lower():
+                score += 15
+
+            # Only include events with matches
+            if score > 0:
+                scored_results.append((score, event_dict))
+
+        # Sort by score (descending), then by name
+        scored_results.sort(key=lambda x: (-x[0], x[1]["name"].lower()))
+        result = [event_dict for score, event_dict in scored_results]
 
     return result
 
@@ -533,6 +610,37 @@ def get_features(db: Session = Depends(get_db)):
         "recent": recent_features,
         "all": recent_features + remaining_features,
         "default": "Engagement"
+    }
+
+
+@app.get("/api/filter-options")
+def get_filter_options(db: Session = Depends(get_db)):
+    """Get all available filter options (categories, creators, date range)."""
+    # Get unique categories
+    categories = db.query(Event.category).filter(
+        Event.category.isnot(None)
+    ).distinct().all()
+    category_list = sorted([c[0] for c in categories if c[0]])
+
+    # Get unique creators
+    creators = db.query(Event.created_by).filter(
+        Event.created_by.isnot(None)
+    ).distinct().all()
+    creator_list = sorted([c[0] for c in creators if c[0]])
+
+    # Get date range
+    date_range = db.query(
+        func.min(Event.created_at).label('min_date'),
+        func.max(Event.created_at).label('max_date')
+    ).first()
+
+    return {
+        "categories": category_list,
+        "creators": creator_list,
+        "date_range": {
+            "min": date_range.min_date.isoformat() if date_range.min_date else None,
+            "max": date_range.max_date.isoformat() if date_range.max_date else None
+        }
     }
 
 
