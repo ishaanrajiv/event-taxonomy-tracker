@@ -17,6 +17,8 @@ env/
 *.sqlite
 *.sqlite3
 event_taxonomy.db
+event_taxonomy.db-shm
+event_taxonomy.db-wal
 
 # IDEs
 .vscode/
