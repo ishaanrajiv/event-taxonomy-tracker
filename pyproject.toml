@@ -1,7 +1,7 @@
 [project]
-name = "event-taxonomy-tool"
+name = "event-taxonomy-tracker"
 version = "0.1.0"
-description = "Event taxonomy management tool with property registry and conflict detection"
+description = "Event taxonomy management tracker with property registry and conflict detection"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

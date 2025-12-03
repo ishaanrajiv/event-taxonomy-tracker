@@ -1,5 +1,5 @@
 {
-  "name": "event-taxonomy-tool",
+  "name": "event-taxonomy-tracker",
   "private": true,
   "scripts": {
     "dev": "concurrently -n backend,frontend -c magenta,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",

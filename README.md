@@ -122,7 +122,7 @@ Switch to the "Changelog" tab to see a full audit trail of all changes:
 ## Project Structure
 
 ```
-event-taxonomy-tool/
+event-taxonomy-tracker/
 ├── backend/
 │   ├── api.py              # FastAPI application and endpoints
 │   ├── database.py         # SQLAlchemy models and database setup
