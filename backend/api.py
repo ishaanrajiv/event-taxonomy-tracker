@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -43,7 +43,10 @@ app.add_middleware(
 
 def log_change(db: Session, entity_type: str, entity_id: int, action: str,
                old_value: dict = None, new_value: dict = None, changed_by: str = None):
-    """Helper function to log changes to changelog."""
+    """Helper function to log changes to changelog.
+    
+    Note: This does NOT commit - the caller is responsible for transaction management.
+    """
     changelog = Changelog(
         entity_type=entity_type,
         entity_id=entity_id,
@@ -53,7 +56,6 @@ def log_change(db: Session, entity_type: str, entity_id: int, action: str,
         changed_by=changed_by
     )
     db.add(changelog)
-    db.commit()
 
 
 # ========== EVENT ENDPOINTS ==========
@@ -65,12 +67,15 @@ def list_events(
     created_by: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    skip: int = Query(default=0, ge=0, description="Number of events to skip"),
+    limit: int = Query(default=100, ge=1, le=500, description="Maximum number of events to return"),
     db: Session = Depends(get_db)
 ):
-    """List all events with optional search and filters.
+    """List all events with optional search, filters, and pagination.
 
     Search includes: event name, category, description, property names with relevance ranking.
     Filters: category, created_by, date range.
+    Pagination: skip and limit parameters.
     """
     # Start with base query with eager loading to avoid N+1 queries
     base_query = db.query(Event).options(
@@ -89,16 +94,17 @@ def list_events(
             date_from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
             base_query = base_query.filter(Event.created_at >= date_from_dt)
         except ValueError:
-            pass  # Invalid date format, skip filter
+            raise HTTPException(status_code=400, detail=f"Invalid date_from format: {date_from}. Use ISO format.")
 
     if date_to:
         try:
             date_to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
             base_query = base_query.filter(Event.created_at <= date_to_dt)
         except ValueError:
-            pass  # Invalid date format, skip filter
+            raise HTTPException(status_code=400, detail=f"Invalid date_to format: {date_to}. Use ISO format.")
 
-    events = base_query.all()
+    # Apply pagination
+    events = base_query.offset(skip).limit(limit).all()
 
     # Format response with properties and calculate search relevance
     result = []
@@ -257,22 +263,47 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
         },
         changed_by=event.created_by
     )
+    db.commit()  # Commit the changelog entry
 
-    # Return formatted response
-    events = list_events(db=db)
-    return next((e for e in events if e["id"] == db_event.id), events[0] if events else db_event)
+    # Return the created event directly
+    return get_event(db_event.id, db)
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
 def get_event(event_id: int, db: Session = Depends(get_db)):
     """Get a single event with its properties."""
-    events = list_events(db=db)
-    event = next((e for e in events if e["id"] == event_id), None)
+    db_event = db.query(Event).options(
+        selectinload(Event.event_properties).joinedload(EventProperty.property)
+    ).filter(Event.id == event_id).first()
 
-    if not event:
+    if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return event
+    # Format response with properties
+    event_dict = {
+        "id": db_event.id,
+        "name": db_event.name,
+        "description": db_event.description,
+        "category": db_event.category,
+        "created_by": db_event.created_by,
+        "created_at": db_event.created_at,
+        "updated_at": db_event.updated_at,
+        "properties": []
+    }
+
+    for ep in db_event.event_properties:
+        event_dict["properties"].append({
+            "id": ep.id,
+            "property_id": ep.property_id,
+            "property_name": ep.property.name,
+            "property_type": ep.property_type,
+            "data_type": ep.property.data_type,
+            "description": ep.property.description,
+            "is_required": ep.is_required,
+            "example_value": ep.example_value
+        })
+
+    return event_dict
 
 
 @app.put("/api/events/{event_id}", response_model=EventResponse)
@@ -330,6 +361,7 @@ def update_event(
             "category": db_event.category
         }
         log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value, changed_by=changed_by)
+        db.commit()  # Commit the changelog entry
 
     return get_event(event_id, db)
 
@@ -383,6 +415,7 @@ def delete_event(event_id: int, changed_by: Optional[str] = None, db: Session = 
     db.commit()
 
     log_change(db, "event", event_id, "delete", old_value=old_value, changed_by=changed_by)
+    db.commit()  # Commit the changelog entry
 
     return {
         "message": "Event deleted successfully",
@@ -461,6 +494,7 @@ def add_property_to_event(
         },
         changed_by=changed_by
     )
+    db.commit()  # Commit the changelog entry
 
     return {"message": "Property added successfully", "property_id": property_obj.id}
 
@@ -504,6 +538,7 @@ def remove_property_from_event(
         },
         changed_by=changed_by
     )
+    db.commit()  # Commit the changelog entry
 
     return {"message": "Property removed successfully"}
 
@@ -537,6 +572,7 @@ def create_property(prop: PropertyCreate, db: Session = Depends(get_db)):
         new_value={"name": db_property.name, "data_type": db_property.data_type},
         changed_by=prop.created_by
     )
+    db.commit()  # Commit the changelog entry
 
     return db_property
 
@@ -558,7 +594,7 @@ def suggest_properties(q: str, db: Session = Depends(get_db)):
 def get_changelog(
     entity_type: Optional[str] = None,
     entity_id: Optional[int] = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=500, description="Maximum number of entries to return"),
     db: Session = Depends(get_db)
 ):
     """Get changelog with optional filters."""
@@ -578,20 +614,28 @@ def get_changelog(
 @app.get("/api/search")
 def search(q: str, db: Session = Depends(get_db)):
     """Global search across events and properties using FTS5 for events."""
-    # Use FTS5 for event search (much faster than ILIKE)
-    fts_query = db.execute(
-        text("""
-        SELECT DISTINCT e.id, e.name
-        FROM events e
-        INNER JOIN events_fts fts ON e.id = fts.rowid
-        WHERE events_fts MATCH :query
-        ORDER BY rank
-        LIMIT 50
-        """),
-        {"query": q}
-    ).fetchall()
+    # Escape FTS5 special characters to prevent injection
+    # FTS5 has special syntax: * " () - : AND OR NOT
+    # Wrap the query in double quotes for phrase matching and escape internal quotes
+    escaped_query = '"' + q.replace('"', '""') + '"'
     
-    events = [{"id": row[0], "name": row[1], "type": "event"} for row in fts_query]
+    # Use FTS5 for event search (much faster than ILIKE)
+    try:
+        fts_query = db.execute(
+            text("""
+            SELECT DISTINCT e.id, e.name
+            FROM events e
+            INNER JOIN events_fts fts ON e.id = fts.rowid
+            WHERE events_fts MATCH :query
+            ORDER BY rank
+            LIMIT 50
+            """),
+            {"query": escaped_query}
+        ).fetchall()
+        events = [{"id": row[0], "name": row[1], "type": "event"} for row in fts_query]
+    except Exception:
+        # Fallback to empty if FTS5 query fails (e.g., malformed input)
+        events = []
     
     # Keep ILIKE for properties (smaller dataset, FTS5 overhead not worth it)
     properties = db.query(Property).filter(
@@ -871,7 +915,12 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
                         Property.name == prop_create.property_name
                     ).first()
 
-                    if not property_obj:
+                    if property_obj:
+                        # Check for data type conflict
+                        if property_obj.data_type != prop_create.data_type:
+                            errors.append(f"Event '{event_data['name']}': Property '{prop_create.property_name}' type conflict")
+                            continue
+                    else:
                         property_obj = Property(
                             name=prop_create.property_name,
                             data_type=prop_create.data_type,

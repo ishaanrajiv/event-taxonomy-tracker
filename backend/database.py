@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event, text
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event, text, UniqueConstraint
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.engine import Engine
 from datetime import datetime, UTC
@@ -21,7 +21,7 @@ def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.execute("PRAGMA synchronous=NORMAL")  # Faster while still safe
     cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
     cursor.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O for performance
-    cursor.execute("PRAGMA page_size=4096")  # Optimal page size
+    # Note: page_size can only be set on new databases, removed as ineffective on existing DBs
     cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -58,10 +58,13 @@ class Event(Base):
 
 class EventProperty(Base):
     __tablename__ = "event_properties"
+    __table_args__ = (
+        UniqueConstraint('event_id', 'property_id', 'property_type', name='uq_event_property_type'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
-    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
     property_type = Column(String, nullable=False)  # 'event', 'user', 'super'
     is_required = Column(Boolean, default=False)
     example_value = Column(Text)
@@ -142,7 +145,7 @@ def init_db():
             conn.execute(text("""
                 CREATE TRIGGER events_fts_delete AFTER DELETE ON events BEGIN
                     INSERT INTO events_fts(events_fts, rowid, name, description, category)
-                    VALUES ('delete', old.id, old.name, old.description, old.category);
+                    VALUES ('delete', old.id, old.name, COALESCE(old.description, ''), COALESCE(old.category, ''));
                 END
             """))
 
