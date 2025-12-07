@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent, MouseEvent, ChangeEvent } from 'react';
 import axios from 'axios';
-import { Event, EventPropertyCreate, PropertySuggestion, FeaturesResponse } from '../types/api';
+import { Event, EventPropertyCreate, PropertySuggestion } from '../types/api';
 
 interface EventModalProps {
   event: Event | null;
@@ -42,7 +42,7 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('ui');
   const [jsonText, setJsonText] = useState('');
-  const [features, setFeatures] = useState<FeaturesResponse & { recent: string[]; all: string[]; default: string }>({
+  const [features, setFeatures] = useState<{ recent: string[]; all: string[]; default: string }>({
     recent: [],
     all: [],
     default: 'Engagement'
@@ -52,7 +52,7 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
     // Fetch available features
     const fetchFeatures = async () => {
       try {
-        const response = await axios.get<FeaturesResponse & { recent: string[]; all: string[]; default: string }>(`${apiBase}/features`);
+        const response = await axios.get<{ recent: string[]; all: string[]; default: string }>(`${apiBase}/features`);
         setFeatures(response.data);
       } catch (error) {
         console.error('Error fetching features:', error);
@@ -237,30 +237,47 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
         const currentProps = submitProperties;
 
         // Find properties to remove (in original but not in current)
-        for (const origProp of originalProps) {
-          const stillExists = currentProps.some(cp => cp.id === origProp.id);
-          if (!stillExists) {
-            await axios.delete(`${apiBase}/events/${event.id}/properties/${origProp.id}`, {
-              params: { changed_by: submitFormData.created_by }
-            });
-          }
-        }
+        const propsToRemove = originalProps.filter(
+          origProp => !currentProps.some(cp => cp.id === origProp.id)
+        );
 
         // Find properties to add (in current but not in original)
-        for (const currProp of currentProps) {
-          const isNew = !originalProps.some(op => op.id === currProp.id);
-          if (isNew) {
-            await axios.post(`${apiBase}/events/${event.id}/properties`, {
-              property_name: currProp.property_name,
-              property_type: currProp.property_type,
-              data_type: currProp.data_type,
-              is_required: currProp.is_required,
-              example_value: currProp.example_value,
-              description: currProp.description
-            }, {
-              params: { changed_by: submitFormData.created_by }
-            });
-          }
+        const propsToAdd = currentProps.filter(
+          currProp => !originalProps.some(op => op.id === currProp.id)
+        );
+
+        // Execute all property changes in parallel for better performance
+        const deletePromises = propsToRemove.map(origProp =>
+          axios.delete(`${apiBase}/events/${event.id}/properties/${origProp.id}`, {
+            params: { changed_by: submitFormData.created_by }
+          }).catch(err => ({ error: err, type: 'delete', property: origProp.property_name }))
+        );
+
+        const addPromises = propsToAdd.map(currProp =>
+          axios.post(`${apiBase}/events/${event.id}/properties`, {
+            property_name: currProp.property_name,
+            property_type: currProp.property_type,
+            data_type: currProp.data_type,
+            is_required: currProp.is_required,
+            example_value: currProp.example_value,
+            description: currProp.description
+          }, {
+            params: { changed_by: submitFormData.created_by }
+          }).catch(err => ({ error: err, type: 'add', property: currProp.property_name }))
+        );
+
+        // Wait for all operations to complete
+        const results = await Promise.all([...deletePromises, ...addPromises]);
+
+        // Check for partial failures
+        const failures = results.filter(r => r && typeof r === 'object' && 'error' in r) as Array<{ error: unknown; type: string; property: string }>;
+        if (failures.length > 0) {
+          const failedOps = failures.map(f => `${f.type} '${f.property}'`).join(', ');
+          console.error('Partial failures:', failures);
+          // Still close but show warning - data was partially saved
+          setError(`Some property changes failed: ${failedOps}. Please refresh and try again.`);
+          setSaving(false);
+          return;
         }
       } else {
         // Create event
@@ -333,8 +350,8 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
                 type="button"
                 onClick={() => handleViewModeChange('ui')}
                 className={`px-4 py-2 font-medium text-sm rounded-md transition-all ${viewMode === 'ui'
-                    ? 'bg-background text-foreground shadow-soft'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-soft'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 <div className="flex items-center gap-2">
@@ -348,8 +365,8 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
                 type="button"
                 onClick={() => handleViewModeChange('json')}
                 className={`px-4 py-2 font-medium text-sm rounded-md transition-all ${viewMode === 'json'
-                    ? 'bg-background text-foreground shadow-soft'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-soft'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 <div className="flex items-center gap-2">
@@ -570,8 +587,8 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
                               </div>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${prop.property_type === 'event' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                    prop.property_type === 'user' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                                      'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                                  prop.property_type === 'user' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                                    'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
                                   }`}>
                                   {prop.property_type}
                                 </span>
