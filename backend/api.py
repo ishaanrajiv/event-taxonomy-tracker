@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import or_, and_, func
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager

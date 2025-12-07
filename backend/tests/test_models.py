@@ -3,9 +3,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from models import (
-    PropertyCreate, PropertyResponse,
-    EventCreate, EventUpdate, EventResponse,
-    EventPropertyCreate,
+    PropertyCreate, EventCreate, EventUpdate, EventPropertyCreate,
     ChangelogResponse
 )
 

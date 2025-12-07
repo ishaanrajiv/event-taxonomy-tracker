@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime
 
 from utils import find_similar_properties, object_to_dict

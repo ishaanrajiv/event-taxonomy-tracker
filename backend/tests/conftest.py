@@ -1,18 +1,18 @@
 import pytest
 import sys
 from pathlib import Path
-
-# Add backend directory to path
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from database import Base, get_db
-from api import app
+# Add backend directory to path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
+from database import Base, get_db # noqa: E402
+from api import app # noqa: E402
+
+
 
 
 @pytest.fixture(scope="function")
