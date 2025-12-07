@@ -162,7 +162,7 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
       });
       setProperties((parsed.properties || []).map((p: EventPropertyCreate, idx: number) => ({ ...p, id: Date.now() + idx })));
       setError('');
-    } catch (e) {
+    } catch {
       setError('Invalid JSON format');
     }
   };
@@ -182,9 +182,30 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
     setSaving(true);
 
     try {
+      // If in JSON mode, parse JSON directly for submission
+      let submitFormData = formData;
+      let submitProperties = properties;
+
+      if (viewMode === 'json') {
+        try {
+          const parsed = JSON.parse(jsonText);
+          submitFormData = {
+            name: parsed.name || '',
+            description: parsed.description || '',
+            category: parsed.category || '',
+            created_by: formData.created_by
+          };
+          submitProperties = (parsed.properties || []).map((p: EventPropertyCreate, idx: number) => ({ ...p, id: Date.now() + idx }));
+        } catch {
+          setError('Invalid JSON format');
+          setSaving(false);
+          return;
+        }
+      }
+
       const payload = {
-        ...formData,
-        properties: properties.map(p => ({
+        ...submitFormData,
+        properties: submitProperties.map(p => ({
           property_name: p.property_name,
           property_type: p.property_type,
           data_type: p.data_type,
@@ -197,37 +218,37 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
       if (event) {
         // Update event metadata only if changed
         const metadataChanged =
-          formData.name !== event.name ||
-          formData.description !== event.description ||
-          formData.category !== event.category;
+          submitFormData.name !== event.name ||
+          submitFormData.description !== event.description ||
+          submitFormData.category !== event.category;
 
         if (metadataChanged) {
           await axios.put(`${apiBase}/events/${event.id}`, {
-            name: formData.name,
-            description: formData.description,
-            category: formData.category
+            name: submitFormData.name,
+            description: submitFormData.description,
+            category: submitFormData.category
           }, {
-            params: { changed_by: formData.created_by }
+            params: { changed_by: submitFormData.created_by }
           });
         }
 
         // Handle property changes - diff current vs original
         const originalProps = event.properties || [];
-        const currentProps = properties;
+        const currentProps = submitProperties;
 
         // Find properties to remove (in original but not in current)
         for (const origProp of originalProps) {
           const stillExists = currentProps.some(cp => cp.id === origProp.id);
           if (!stillExists) {
             await axios.delete(`${apiBase}/events/${event.id}/properties/${origProp.id}`, {
-              params: { changed_by: formData.created_by }
+              params: { changed_by: submitFormData.created_by }
             });
           }
         }
 
         // Find properties to add (in current but not in original)
         for (const currProp of currentProps) {
-          const isNew = !originalProps.some(op => op.id === currProp.id);
+          const isNew = !originalProps.some(op => op.id === origProp.id);
           if (isNew) {
             await axios.post(`${apiBase}/events/${event.id}/properties`, {
               property_name: currProp.property_name,
@@ -237,7 +258,7 @@ export default function EventModal({ event, onClose, apiBase }: EventModalProps)
               example_value: currProp.example_value,
               description: currProp.description
             }, {
-              params: { changed_by: formData.created_by }
+              params: { changed_by: submitFormData.created_by }
             });
           }
         }

@@ -1,10 +1,14 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.engine import Engine
 from datetime import datetime
+from pathlib import Path
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./event_taxonomy.db"
+# Get the backend directory (where this file is located)
+BACKEND_DIR = Path(__file__).parent
+DB_PATH = BACKEND_DIR / "event_taxonomy.db"
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -90,3 +94,59 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    
+    # Create FTS5 virtual table for full-text search on events
+    with engine.connect() as conn:
+        # Check if FTS5 table exists
+        result = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='events_fts'")
+        )
+        if not result.fetchone():
+            # Create FTS5 virtual table
+            conn.execute(text("""
+                CREATE VIRTUAL TABLE events_fts USING fts5(
+                    event_id UNINDEXED,
+                    name,
+                    description,
+                    category,
+                    content='events',
+                    content_rowid='id'
+                )
+            """))
+            
+            # Populate FTS5 table with existing data
+            conn.execute(text("""
+                INSERT INTO events_fts(event_id, name, description, category)
+                SELECT id, name, COALESCE(description, ''), COALESCE(category, '')
+                FROM events
+            """))
+            
+            # Create triggers to keep FTS5 in sync
+            # Insert trigger
+            conn.execute(text("""
+                CREATE TRIGGER events_fts_insert AFTER INSERT ON events BEGIN
+                    INSERT INTO events_fts(event_id, name, description, category)
+                    VALUES (new.id, new.name, COALESCE(new.description, ''), COALESCE(new.category, ''));
+                END
+            """))
+            
+            # Update trigger
+            conn.execute(text("""
+                CREATE TRIGGER events_fts_update AFTER UPDATE ON events BEGIN
+                    UPDATE events_fts 
+                    SET name = new.name,
+                        description = COALESCE(new.description, ''),
+                        category = COALESCE(new.category, '')
+                    WHERE event_id = new.id;
+                END
+            """))
+            
+            # Delete trigger
+            conn.execute(text("""
+                CREATE TRIGGER events_fts_delete AFTER DELETE ON events BEGIN
+                    DELETE FROM events_fts WHERE event_id = old.id;
+                END
+            """))
+            
+            conn.commit()
+

@@ -7,7 +7,8 @@ import Changelog from './components/Changelog';
 import BulkImport from './components/BulkImport';
 import FilterBar from './components/FilterBar';
 import Header from './components/Header';
-import { ToastContainer, useToast } from './components/Toast';
+import { ToastContainer } from './components/Toast';
+import { useToast } from './hooks/useToast';
 import { useDarkMode } from './hooks/useDarkMode';
 import { Event, Property, ChangelogEntry, FilterOptions, ActiveFilters } from './types/api';
 
@@ -37,7 +38,7 @@ function App() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (searchQuery) params.q = searchQuery;
       if (filters.category) params.category = filters.category;
       if (filters.creator) params.created_by = filters.creator;

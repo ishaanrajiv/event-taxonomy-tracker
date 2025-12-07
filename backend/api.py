@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_, and_, func
 from typing import List, Optional
 from datetime import datetime
@@ -10,6 +10,7 @@ import csv
 import io
 
 from database import get_db, init_db, Event, Property, EventProperty, Changelog
+from sqlalchemy import text
 from models import (
     EventCreate, EventResponse, EventUpdate,
     PropertyCreate, PropertyResponse,
@@ -66,8 +67,10 @@ def list_events(
     Search includes: event name, category, description, property names with relevance ranking.
     Filters: category, created_by, date range.
     """
-    # Start with base query
-    base_query = db.query(Event)
+    # Start with base query with eager loading to avoid N+1 queries
+    base_query = db.query(Event).options(
+        selectinload(Event.event_properties).joinedload(EventProperty.property)
+    )
 
     # Apply filters first (non-search)
     if category:
@@ -569,18 +572,30 @@ def get_changelog(
 
 @app.get("/api/search")
 def search(q: str, db: Session = Depends(get_db)):
-    """Global search across events and properties."""
-    events = db.query(Event).filter(
-        (Event.name.ilike(f"%{q}%")) | (Event.description.ilike(f"%{q}%"))
-    ).all()
-
+    """Global search across events and properties using FTS5 for events."""
+    # Use FTS5 for event search (much faster than ILIKE)
+    fts_query = db.execute(
+        text("""
+        SELECT DISTINCT e.id, e.name
+        FROM events e
+        INNER JOIN events_fts fts ON e.id = fts.rowid
+        WHERE events_fts MATCH :query
+        ORDER BY rank
+        LIMIT 50
+        """),
+        {"query": q}
+    ).fetchall()
+    
+    events = [{"id": row[0], "name": row[1], "type": "event"} for row in fts_query]
+    
+    # Keep ILIKE for properties (smaller dataset, FTS5 overhead not worth it)
     properties = db.query(Property).filter(
         (Property.name.ilike(f"%{q}%")) | (Property.description.ilike(f"%{q}%"))
     ).all()
 
     return {
         "query": q,
-        "events": [{"id": e.id, "name": e.name, "type": "event"} for e in events],
+        "events": events,
         "properties": [{"id": p.id, "name": p.name, "type": "property"} for p in properties]
     }
 

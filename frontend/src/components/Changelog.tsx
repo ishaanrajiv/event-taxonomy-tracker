@@ -16,7 +16,7 @@ export default function Changelog({ changelog }: ChangelogProps) {
     return colors[action as ActionType] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: Record<string, unknown> | string | null | undefined): string => {
     if (!value) return '—';
     if (typeof value === 'object') {
       return JSON.stringify(value, null, 2);
