@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_, and_, func
 from typing import List, Optional
 from datetime import datetime
+from contextlib import asynccontextmanager
 import json
 import csv
 import io
@@ -19,7 +20,16 @@ from models import (
 )
 from utils import find_similar_properties
 
-app = FastAPI(title="Event Taxonomy Tracker")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    init_db()
+    yield
+    # Shutdown (if needed)
+
+
+app = FastAPI(title="Event Taxonomy Tracker", lifespan=lifespan)
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -29,11 +39,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
 
 
 def log_change(db: Session, entity_type: str, entity_id: int, action: str,

@@ -135,7 +135,7 @@ class TestChangelogModels:
             old_value=None,
             new_value={"name": "Test Event"},
             changed_by="pytest",
-            changed_at=datetime.utcnow()
+            changed_at=datetime.now()
         )
         assert changelog.id == 1
         assert changelog.entity_type == "event"

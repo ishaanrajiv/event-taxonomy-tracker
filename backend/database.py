@@ -1,8 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, event, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.engine import Engine
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 # Get the backend directory (where this file is located)
@@ -37,7 +36,7 @@ class Property(Base):
     name = Column(String, unique=True, nullable=False, index=True)
     data_type = Column(String, nullable=False)  # Float, Int, String, List, JSON
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     created_by = Column(String)
 
     event_properties = relationship("EventProperty", back_populates="property")
@@ -50,8 +49,8 @@ class Event(Base):
     name = Column(String, nullable=False, index=True)
     description = Column(Text)
     category = Column(String, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     created_by = Column(String)
 
     event_properties = relationship("EventProperty", back_populates="event", cascade="all, delete-orphan")
@@ -81,7 +80,7 @@ class Changelog(Base):
     old_value = Column(JSON)
     new_value = Column(JSON)
     changed_by = Column(String)
-    changed_at = Column(DateTime, default=datetime.utcnow)
+    changed_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 def get_db():
@@ -105,7 +104,6 @@ def init_db():
             # Create FTS5 virtual table
             conn.execute(text("""
                 CREATE VIRTUAL TABLE events_fts USING fts5(
-                    event_id UNINDEXED,
                     name,
                     description,
                     category,
@@ -113,40 +111,40 @@ def init_db():
                     content_rowid='id'
                 )
             """))
-            
+
             # Populate FTS5 table with existing data
             conn.execute(text("""
-                INSERT INTO events_fts(event_id, name, description, category)
+                INSERT INTO events_fts(rowid, name, description, category)
                 SELECT id, name, COALESCE(description, ''), COALESCE(category, '')
                 FROM events
             """))
-            
+
             # Create triggers to keep FTS5 in sync
             # Insert trigger
             conn.execute(text("""
                 CREATE TRIGGER events_fts_insert AFTER INSERT ON events BEGIN
-                    INSERT INTO events_fts(event_id, name, description, category)
+                    INSERT INTO events_fts(rowid, name, description, category)
                     VALUES (new.id, new.name, COALESCE(new.description, ''), COALESCE(new.category, ''));
                 END
             """))
-            
+
             # Update trigger
             conn.execute(text("""
                 CREATE TRIGGER events_fts_update AFTER UPDATE ON events BEGIN
-                    UPDATE events_fts 
-                    SET name = new.name,
-                        description = COALESCE(new.description, ''),
-                        category = COALESCE(new.category, '')
-                    WHERE event_id = new.id;
+                    INSERT INTO events_fts(events_fts, rowid, name, description, category)
+                    VALUES ('delete', old.id, old.name, old.description, old.category);
+                    INSERT INTO events_fts(rowid, name, description, category)
+                    VALUES (new.id, new.name, COALESCE(new.description, ''), COALESCE(new.category, ''));
                 END
             """))
-            
+
             # Delete trigger
             conn.execute(text("""
                 CREATE TRIGGER events_fts_delete AFTER DELETE ON events BEGIN
-                    DELETE FROM events_fts WHERE event_id = old.id;
+                    INSERT INTO events_fts(events_fts, rowid, name, description, category)
+                    VALUES ('delete', old.id, old.name, old.description, old.category);
                 END
             """))
-            
+
             conn.commit()
 

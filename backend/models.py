@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -18,8 +18,7 @@ class PropertyResponse(PropertyBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventPropertyBase(BaseModel):
@@ -44,8 +43,7 @@ class EventPropertyResponse(EventPropertyBase):
     data_type: str
     description: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventBase(BaseModel):
@@ -71,8 +69,7 @@ class EventResponse(EventBase):
     updated_at: datetime
     properties: List[EventPropertyResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChangelogResponse(BaseModel):
@@ -85,8 +82,7 @@ class ChangelogResponse(BaseModel):
     changed_by: Optional[str] = None
     changed_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PropertySuggestion(BaseModel):
