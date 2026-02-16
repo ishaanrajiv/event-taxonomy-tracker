@@ -1,11 +1,16 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+PropertyDataType = Literal["String", "Int", "Float", "Boolean", "List", "JSON"]
+PropertyType = Literal["event", "user", "super"]
 
 
 class PropertyBase(BaseModel):
     name: str
-    data_type: str
+    data_type: PropertyDataType
     description: Optional[str] = None
     created_by: Optional[str] = None
 
@@ -16,6 +21,8 @@ class PropertyCreate(PropertyBase):
 
 class PropertyResponse(PropertyBase):
     id: int
+    # Response remains permissive so legacy rows don't 500 on read.
+    data_type: str
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -23,15 +30,15 @@ class PropertyResponse(PropertyBase):
 
 class EventPropertyBase(BaseModel):
     property_id: int
-    property_type: str  # 'event', 'user', 'super'
+    property_type: PropertyType
     is_required: bool = False
     example_value: Optional[str] = None
 
 
 class EventPropertyCreate(BaseModel):
     property_name: str
-    property_type: str
-    data_type: str
+    property_type: PropertyType
+    data_type: PropertyDataType
     is_required: bool = False
     example_value: Optional[str] = None
     description: Optional[str] = None
@@ -40,6 +47,8 @@ class EventPropertyCreate(BaseModel):
 class EventPropertyResponse(EventPropertyBase):
     id: int
     property_name: str
+    # Response remains permissive so legacy rows don't 500 on read.
+    property_type: str
     data_type: str
     description: Optional[str] = None
 
@@ -54,7 +63,14 @@ class EventBase(BaseModel):
 
 
 class EventCreate(EventBase):
-    properties: Optional[List[EventPropertyCreate]] = []
+    properties: List[EventPropertyCreate] = Field(default_factory=list)
+
+    @field_validator("properties", mode="before")
+    @classmethod
+    def normalize_properties(cls, value):
+        if value is None:
+            return []
+        return value
 
 
 class EventUpdate(BaseModel):
@@ -67,7 +83,7 @@ class EventResponse(EventBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    properties: List[EventPropertyResponse] = []
+    properties: List[EventPropertyResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

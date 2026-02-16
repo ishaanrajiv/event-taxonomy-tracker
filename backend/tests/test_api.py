@@ -1,4 +1,8 @@
+import json
+
 from fastapi import status
+
+from database import Event, EventProperty, Property
 
 
 class TestEventEndpoints:
@@ -106,6 +110,98 @@ class TestEventEndpoints:
         assert len(data) >= 1
         assert all(e["category"] == sample_event_data["category"] for e in data)
 
+    def test_events_search_pagination_applies_after_search(self, client):
+        """Search relevance should be computed before pagination."""
+        for idx in range(3):
+            client.post("/api/events", json={"name": f"Noise Event {idx}", "properties": []})
+
+        client.post("/api/events", json={"name": "Very Specific Target Event", "properties": []})
+
+        response = client.get("/api/events?q=target&skip=0&limit=1")
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data) == 1
+        assert "Target" in data[0]["name"]
+
+    def test_create_event_properties_null_normalized(self, client):
+        """Explicit null properties should be normalized to an empty list."""
+        response = client.post("/api/events", json={"name": "Null Props Event", "properties": None})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["properties"] == []
+
+    def test_create_event_duplicate_property_in_payload_returns_400(self, client):
+        """Duplicate (property_name, property_type) pairs should return 400, not 500."""
+        response = client.post("/api/events", json={
+            "name": "Duplicate Property Event",
+            "properties": [
+                {
+                    "property_name": "user_id",
+                    "property_type": "user",
+                    "data_type": "String"
+                },
+                {
+                    "property_name": "user_id",
+                    "property_type": "user",
+                    "data_type": "String"
+                }
+            ]
+        })
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Duplicate properties in payload" in response.json()["detail"]
+
+    def test_invalid_property_type_rejected(self, client):
+        """Invalid property_type values should fail validation."""
+        response = client.post("/api/events", json={
+            "name": "Invalid Property Type",
+            "properties": [
+                {
+                    "property_name": "prop_a",
+                    "property_type": "banana",
+                    "data_type": "String"
+                }
+            ]
+        })
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_invalid_data_type_rejected(self, client):
+        """Invalid data_type values should fail validation."""
+        response = client.post("/api/events", json={
+            "name": "Invalid Data Type",
+            "properties": [
+                {
+                    "property_name": "prop_a",
+                    "property_type": "event",
+                    "data_type": "Integer"
+                }
+            ]
+        })
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_list_events_tolerates_legacy_invalid_property_values(self, client, test_db):
+        """Listing events should not fail on legacy invalid property/data types."""
+        legacy_property = Property(name="legacy_prop", data_type="WeirdType")
+        test_db.add(legacy_property)
+        test_db.commit()
+        test_db.refresh(legacy_property)
+
+        legacy_event = Event(name="Legacy Event")
+        test_db.add(legacy_event)
+        test_db.commit()
+        test_db.refresh(legacy_event)
+
+        test_db.add(EventProperty(
+            event_id=legacy_event.id,
+            property_id=legacy_property.id,
+            property_type="banana",
+        ))
+        test_db.commit()
+
+        response = client.get("/api/events")
+        assert response.status_code == status.HTTP_200_OK
+        event = next(e for e in response.json() if e["id"] == legacy_event.id)
+        assert event["properties"][0]["property_type"] == "banana"
+        assert event["properties"][0]["data_type"] == "WeirdType"
+
 
 class TestPropertyEndpoints:
     """Test property CRUD operations."""
@@ -138,6 +234,17 @@ class TestPropertyEndpoints:
         data = response.json()
         assert len(data) >= 1
 
+    def test_list_properties_tolerates_legacy_invalid_data_type(self, client, test_db):
+        """Listing properties should not fail on legacy invalid data types."""
+        legacy_property = Property(name="legacy_only_prop", data_type="WeirdType")
+        test_db.add(legacy_property)
+        test_db.commit()
+
+        response = client.get("/api/properties")
+        assert response.status_code == status.HTTP_200_OK
+        returned = next(p for p in response.json() if p["name"] == "legacy_only_prop")
+        assert returned["data_type"] == "WeirdType"
+
     def test_suggest_properties(self, client, sample_property_data):
         """Test property suggestions."""
         # Create a property
@@ -164,7 +271,7 @@ class TestEventPropertyEndpoints:
         new_property = {
             "property_name": "another_property",
             "property_type": "user",
-            "data_type": "Integer",
+            "data_type": "Int",
             "is_required": False,
             "example_value": "123",
             "description": "Another test property"
@@ -187,6 +294,29 @@ class TestEventPropertyEndpoints:
             f"/api/events/{event_id}/properties/{event_property_id}?changed_by=pytest"
         )
         assert response.status_code == status.HTTP_200_OK
+
+    def test_remove_property_cleans_orphaned_registry_property(self, client):
+        """Removing the only event association should remove orphaned property from registry."""
+        create_event = client.post("/api/events", json={
+            "name": "Cleanup Event",
+            "properties": [
+                {
+                    "property_name": "orphanable_prop",
+                    "property_type": "event",
+                    "data_type": "String"
+                }
+            ]
+        })
+        event_data = create_event.json()
+        event_property_id = event_data["properties"][0]["id"]
+        event_id = event_data["id"]
+
+        response = client.delete(f"/api/events/{event_id}/properties/{event_property_id}")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["orphaned_property_cleaned"] is True
+
+        properties = client.get("/api/properties").json()
+        assert not any(p["name"] == "orphanable_prop" for p in properties)
 
 
 class TestChangelogEndpoints:
@@ -278,6 +408,70 @@ class TestBulkOperations:
         response = client.get("/api/export/template/csv")
         assert response.status_code == status.HTTP_200_OK
         assert "text/csv" in response.headers["content-type"]
+
+    def test_import_json_rolls_back_event_on_property_conflict(self, client):
+        """Any property conflict should rollback the entire imported event."""
+        client.post("/api/events", json={
+            "name": "Seed Event",
+            "properties": [
+                {
+                    "property_name": "conflicting_prop",
+                    "property_type": "event",
+                    "data_type": "String"
+                }
+            ]
+        })
+
+        payload = [
+            {
+                "name": "Import Conflict Event",
+                "properties": [
+                    {
+                        "property_name": "conflicting_prop",
+                        "property_type": "event",
+                        "data_type": "Int"
+                    }
+                ]
+            }
+        ]
+        file_bytes = json.dumps(payload).encode("utf-8")
+        response = client.post(
+            "/api/import/json",
+            files={"file": ("events.json", file_bytes, "application/json")}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["imported"] == 0
+
+        events = client.get("/api/events?q=Import Conflict Event").json()
+        assert events == []
+
+    def test_import_csv_rolls_back_event_on_property_conflict(self, client):
+        """CSV import should rollback event when any property conflicts."""
+        client.post("/api/events", json={
+            "name": "Seed Event CSV",
+            "properties": [
+                {
+                    "property_name": "conflicting_csv_prop",
+                    "property_type": "event",
+                    "data_type": "String"
+                }
+            ]
+        })
+
+        csv_content = (
+            "event_name,event_description,event_category,property_name,property_type,data_type,is_required,example_value,property_description\n"
+            "Import CSV Conflict Event,desc,Engagement,conflicting_csv_prop,event,Int,true,,\n"
+        ).encode("utf-8")
+
+        response = client.post(
+            "/api/import/csv",
+            files={"file": ("events.csv", csv_content, "text/csv")}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["imported"] == 0
+
+        events = client.get("/api/events?q=Import CSV Conflict Event").json()
+        assert events == []
 
 
 class TestRootEndpoint:

@@ -61,6 +61,10 @@ const mockFilterOptions: FilterOptions = {
   },
 };
 
+const asObject = (value: unknown): Record<string, unknown> => {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+};
+
 export const handlers = [
   // GET /api/events
   http.get(`${API_BASE}/events`, () => {
@@ -84,13 +88,13 @@ export const handlers = [
 
   // POST /api/events
   http.post(`${API_BASE}/events`, async ({ request }) => {
-    const body = await request.json();
+    const body = asObject(await request.json());
     return HttpResponse.json({ id: 2, ...body }, { status: 201 });
   }),
 
   // PUT /api/events/:id
   http.put(`${API_BASE}/events/:id`, async ({ request, params }) => {
-    const body = await request.json();
+    const body = asObject(await request.json());
     return HttpResponse.json({ id: Number(params.id), ...body });
   }),
 

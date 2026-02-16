@@ -71,96 +71,118 @@ export default function BulkImport({ apiBase, onImportComplete }: BulkImportProp
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        Bulk Import Events
-      </h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Import multiple events at once using CSV or JSON files
-      </p>
+    <div className="p-5">
+      <div className="mb-6">
+        <h2 className="font-display text-lg font-bold text-foreground tracking-tight">
+          Bulk Import
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Import multiple events at once using CSV or JSON files
+        </p>
+      </div>
 
-      {/* Templates */}
-      <div className="mb-8">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-          Step 1: Download Template
-        </h3>
-        <div className="flex gap-3">
+      {/* Step 1 */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+            1
+          </div>
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+            Download Template
+          </h3>
+        </div>
+        <div className="flex gap-2">
           <button
             onClick={() => downloadTemplate('json')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold border border-primary/30 bg-primary/5 text-primary rounded-lg hover:bg-primary/10 transition-colors"
           >
-            📄 Download JSON Template
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            JSON Template
           </button>
           <button
             onClick={() => downloadTemplate('csv')}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold border border-success/30 bg-success/5 text-success rounded-lg hover:bg-success/10 transition-colors"
           >
-            📊 Download CSV Template
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            CSV Template
           </button>
         </div>
       </div>
 
-      {/* Upload */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-          Step 2: Upload Filled Template
-        </h3>
-        <div className="flex gap-3">
-          <div>
-            <label className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition cursor-pointer inline-block">
-              📤 Upload JSON
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => handleFileUpload(e, 'json')}
-                className="hidden"
-                disabled={importing}
-              />
-            </label>
+      {/* Step 2 */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+            2
           </div>
-          <div>
-            <label className="px-4 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition cursor-pointer inline-block">
-              📤 Upload CSV
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => handleFileUpload(e, 'csv')}
-                className="hidden"
-                disabled={importing}
-              />
-            </label>
-          </div>
+          <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+            Upload Filled Template
+          </h3>
+        </div>
+        <div className="flex gap-2">
+          <label className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold border border-input bg-card text-foreground rounded-lg hover:bg-muted cursor-pointer transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            Upload JSON
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => handleFileUpload(e, 'json')}
+              className="hidden"
+              disabled={importing}
+            />
+          </label>
+          <label className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold border border-input bg-card text-foreground rounded-lg hover:bg-muted cursor-pointer transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            Upload CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => handleFileUpload(e, 'csv')}
+              className="hidden"
+              disabled={importing}
+            />
+          </label>
         </div>
       </div>
 
       {/* Loading */}
       {importing && (
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-blue-800 dark:text-blue-300">Importing events...</p>
+        <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 animate-pulse-glow">
+          <p className="text-xs font-medium text-primary">Importing events...</p>
         </div>
       )}
 
       {/* Results */}
       {result && (
-        <div className={`mt-6 p-4 rounded-lg border ${
+        <div className={`p-3 rounded-lg border ${
           result.errors && result.errors.length > 0
-            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-            : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            ? 'border-primary/20 bg-primary/5'
+            : 'border-success/20 bg-success/5'
         }`}>
-          <p className={`font-medium ${
+          <p className={`text-xs font-semibold ${
             result.errors && result.errors.length > 0
-              ? 'text-yellow-800 dark:text-yellow-300'
-              : 'text-green-800 dark:text-green-300'
+              ? 'text-primary'
+              : 'text-success'
           }`}>
             Imported {result.imported} of {result.total} events
           </p>
 
           {result.errors && result.errors.length > 0 && (
-            <div className="mt-3">
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200 mb-2">Errors:</p>
-              <ul className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1 max-h-40 overflow-y-auto">
+            <div className="mt-2">
+              <p className="text-[11px] font-semibold text-foreground mb-1">Errors:</p>
+              <ul className="space-y-0.5 max-h-32 overflow-y-auto">
                 {result.errors.map((error, idx) => (
-                  <li key={idx} className="font-mono text-xs">• {error}</li>
+                  <li key={idx} className="text-[11px] font-mono text-muted-foreground">
+                    {error}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -168,14 +190,14 @@ export default function BulkImport({ apiBase, onImportComplete }: BulkImportProp
         </div>
       )}
 
-      {/* Help */}
-      <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tips:</h4>
-        <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-          <li>• Download a template to see the required format</li>
-          <li>• CSV files can have multiple properties per event (use multiple rows with the same event_name)</li>
-          <li>• JSON files allow you to define complete events with all properties in one structure</li>
-          <li>• Existing properties with matching names will be reused (data types must match)</li>
+      {/* Tips */}
+      <div className="mt-6 p-3 rounded-lg bg-muted/30 border border-border/40">
+        <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Tips</h4>
+        <ul className="space-y-1 text-[11px] text-muted-foreground">
+          <li>Download a template to see the required format</li>
+          <li>CSV files: use multiple rows with the same event_name for multiple properties</li>
+          <li>JSON files: define complete events with all properties in one structure</li>
+          <li>Existing properties with matching names will be reused (data types must match)</li>
         </ul>
       </div>
     </div>
