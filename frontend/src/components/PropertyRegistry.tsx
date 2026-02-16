@@ -1,4 +1,5 @@
 import { Property } from '../types/api';
+import EmptyState from './EmptyState';
 
 interface PropertyRegistryProps {
   properties: Property[];
@@ -6,59 +7,67 @@ interface PropertyRegistryProps {
 
 export default function PropertyRegistry({ properties }: PropertyRegistryProps) {
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        Property Registry ({properties.length})
-      </h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        All unique properties across your event taxonomy
-      </p>
+    <div className="p-5">
+      <div className="mb-5">
+        <h2 className="font-display text-lg font-bold text-foreground tracking-tight">
+          Property Registry
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {properties.length} unique {properties.length === 1 ? 'property' : 'properties'} across your taxonomy
+        </p>
+      </div>
 
       {properties.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-          <p>No properties registered yet. Create events with properties to populate the registry.</p>
-        </div>
+        <EmptyState
+          title="No properties yet"
+          description="Create events with properties to populate the registry."
+          icon="properties"
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Property Name
+        <div className="overflow-x-auto rounded-lg border border-border/60">
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr className="bg-muted/40">
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                  Property
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider">
                   Data Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider">
                   Description
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Created At
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                  Created
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Created By
+                <th className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wider">
+                  By
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {properties.map((property) => (
-                <tr key={property.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+            <tbody className="divide-y divide-border/40">
+              {properties.map((property, index) => (
+                <tr
+                  key={property.id}
+                  className="hover:bg-muted/20 transition-colors animate-fade-in"
+                  style={{ animationDelay: `${index * 20}ms` }}
+                >
+                  <td className="px-3 py-2.5 font-medium text-foreground font-mono">
                     {property.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded text-xs font-medium">
+                  <td className="px-3 py-2.5">
+                    <code className="px-1.5 py-0.5 bg-primary/8 text-primary rounded text-[10px] font-mono font-bold">
                       {property.data_type}
-                    </span>
+                    </code>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 max-w-md truncate">
-                    {property.description || '—'}
+                  <td className="px-3 py-2.5 text-muted-foreground max-w-[280px] truncate">
+                    {property.description || '\u2014'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
                     {new Date(property.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {property.created_by || '—'}
+                  <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                    {property.created_by || '\u2014'}
                   </td>
                 </tr>
               ))}

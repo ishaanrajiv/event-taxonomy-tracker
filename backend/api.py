@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import func
+from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -11,7 +13,6 @@ import csv
 import io
 
 from database import get_db, init_db, Event, Property, EventProperty, Changelog
-from sqlalchemy import text
 from models import (
     EventCreate, EventResponse, EventUpdate,
     PropertyCreate, PropertyResponse,
@@ -56,6 +57,103 @@ def log_change(db: Session, entity_type: str, entity_id: int, action: str,
         changed_by=changed_by
     )
     db.add(changelog)
+
+
+def _validate_unique_event_properties(properties: List[EventPropertyCreate]) -> None:
+    """Validate that each (property_name, property_type) pair appears at most once."""
+    seen: set[tuple[str, str]] = set()
+    duplicates: set[tuple[str, str]] = set()
+
+    for prop in properties:
+        key = (prop.property_name, prop.property_type)
+        if key in seen:
+            duplicates.add(key)
+        seen.add(key)
+
+    if duplicates:
+        duplicate_list = ", ".join([f"{name} ({ptype})" for name, ptype in sorted(duplicates)])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Duplicate properties in payload: {duplicate_list}"
+        )
+
+
+def _create_event_atomic(
+    db: Session,
+    event: EventCreate,
+    created_by_fallback: Optional[str] = None,
+    log_creation: bool = True
+) -> Event:
+    """Create an event and all related rows atomically within the current transaction."""
+    created_by = event.created_by or created_by_fallback
+    properties = event.properties or []
+
+    _validate_unique_event_properties(properties)
+
+    db_event = Event(
+        name=event.name,
+        description=event.description,
+        category=event.category,
+        created_by=created_by
+    )
+    db.add(db_event)
+    db.flush()
+
+    properties_data = []
+    for prop_create in properties:
+        property_obj = db.query(Property).filter(Property.name == prop_create.property_name).first()
+
+        if property_obj:
+            if property_obj.data_type != prop_create.data_type:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Property '{prop_create.property_name}' already exists with data type "
+                        f"'{property_obj.data_type}'. Cannot redefine as '{prop_create.data_type}'."
+                    )
+                )
+        else:
+            property_obj = Property(
+                name=prop_create.property_name,
+                data_type=prop_create.data_type,
+                description=prop_create.description,
+                created_by=created_by
+            )
+            db.add(property_obj)
+            db.flush()
+
+        db.add(EventProperty(
+            event_id=db_event.id,
+            property_id=property_obj.id,
+            property_type=prop_create.property_type,
+            is_required=prop_create.is_required,
+            example_value=prop_create.example_value
+        ))
+
+        properties_data.append({
+            "name": prop_create.property_name,
+            "type": prop_create.property_type,
+            "data_type": prop_create.data_type,
+            "required": prop_create.is_required,
+            "example": prop_create.example_value
+        })
+
+    if log_creation:
+        log_change(
+            db,
+            "event",
+            db_event.id,
+            "create",
+            new_value={
+                "name": db_event.name,
+                "description": db_event.description,
+                "category": db_event.category,
+                "properties": properties_data
+            },
+            changed_by=created_by
+        )
+
+    return db_event
 
 
 # ========== EVENT ENDPOINTS ==========
@@ -103,8 +201,12 @@ def list_events(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid date_to format: {date_to}. Use ISO format.")
 
-    # Apply pagination
-    events = base_query.offset(skip).limit(limit).all()
+    # Search requires evaluating relevance across the full filtered set before pagination.
+    # When no search query is present, paginate directly in SQL.
+    if q:
+        events = base_query.all()
+    else:
+        events = base_query.offset(skip).limit(limit).all()
 
     # Format response with properties and calculate search relevance
     result = []
@@ -186,7 +288,8 @@ def list_events(
 
         # Sort by score (descending), then by name
         scored_results.sort(key=lambda x: (-x[0], x[1]["name"].lower()))
-        result = [event_dict for score, event_dict in scored_results]
+        ranked_results = [event_dict for score, event_dict in scored_results]
+        result = ranked_results[skip: skip + limit]
 
     return result
 
@@ -194,78 +297,20 @@ def list_events(
 @app.post("/api/events", response_model=EventResponse)
 def create_event(event: EventCreate, db: Session = Depends(get_db)):
     """Create a new event with properties."""
-    # Create event
-    db_event = Event(
-        name=event.name,
-        description=event.description,
-        category=event.category,
-        created_by=event.created_by
-    )
-    db.add(db_event)
-    db.flush()
-
-    # Collect properties for changelog
-    properties_data = []
-
-    # Add properties
-    for prop_create in event.properties:
-        # Check if property exists
-        property_obj = db.query(Property).filter(Property.name == prop_create.property_name).first()
-
-        if property_obj:
-            # Verify data type matches
-            if property_obj.data_type != prop_create.data_type:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Property '{prop_create.property_name}' already exists with data type '{property_obj.data_type}'. Cannot redefine as '{prop_create.data_type}'."
-                )
-        else:
-            # Create new property (no logging here - it's logged as part of event creation)
-            property_obj = Property(
-                name=prop_create.property_name,
-                data_type=prop_create.data_type,
-                description=prop_create.description,
-                created_by=event.created_by
-            )
-            db.add(property_obj)
-            db.flush()
-
-        # Create event-property association
-        event_property = EventProperty(
-            event_id=db_event.id,
-            property_id=property_obj.id,
-            property_type=prop_create.property_type,
-            is_required=prop_create.is_required,
-            example_value=prop_create.example_value
+    try:
+        db_event = _create_event_atomic(db, event)
+        db.commit()
+        db.refresh(db_event)
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Event creation failed due to a conflicting database constraint"
         )
-        db.add(event_property)
 
-        # Add to changelog data
-        properties_data.append({
-            "name": prop_create.property_name,
-            "type": prop_create.property_type,
-            "data_type": prop_create.data_type,
-            "required": prop_create.is_required,
-            "example": prop_create.example_value
-        })
-
-    db.commit()
-    db.refresh(db_event)
-
-    # Log single event creation with all properties
-    log_change(
-        db, "event", db_event.id, "create",
-        new_value={
-            "name": db_event.name,
-            "description": db_event.description,
-            "category": db_event.category,
-            "properties": properties_data
-        },
-        changed_by=event.created_by
-    )
-    db.commit()  # Commit the changelog entry
-
-    # Return the created event directly
     return get_event(db_event.id, db)
 
 
@@ -476,7 +521,14 @@ def add_property_to_event(
         example_value=prop.example_value
     )
     db.add(event_property)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Property association conflicts with an existing database constraint"
+        )
 
     # Log as event update - property added (include event name for display)
     log_change(
@@ -517,6 +569,7 @@ def remove_property_from_event(
 
     # Capture property and event info for changelog
     event_name = event_property.event.name
+    property_id = event_property.property_id
     property_info = {
         "name": event_property.property.name,
         "type": event_property.property_type,
@@ -525,22 +578,49 @@ def remove_property_from_event(
         "example": event_property.example_value
     }
 
+    orphaned_property_cleaned = False
     db.delete(event_property)
-    db.commit()
+
+    # Keep property registry clean by removing orphaned properties.
+    linked_elsewhere = db.query(EventProperty).filter(
+        EventProperty.property_id == property_id,
+        EventProperty.id != event_property_id
+    ).first()
+    if not linked_elsewhere:
+        orphaned_prop = db.query(Property).filter(Property.id == property_id).first()
+        if orphaned_prop:
+            db.delete(orphaned_prop)
+            orphaned_property_cleaned = True
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Property removal failed due to a conflicting database constraint"
+        )
 
     # Log as event update - property removed (include event name for display)
+    changelog_old_value = {
+        "action": "property_removed",
+        "name": event_name,
+        "property": property_info
+    }
+    if orphaned_property_cleaned:
+        changelog_old_value["orphaned_property_deleted"] = True
+
     log_change(
         db, "event", event_id, "update",
-        old_value={
-            "action": "property_removed",
-            "name": event_name,
-            "property": property_info
-        },
+        old_value=changelog_old_value,
         changed_by=changed_by
     )
     db.commit()  # Commit the changelog entry
 
-    return {"message": "Property removed successfully"}
+    return {
+        "message": "Property removed successfully",
+        "orphaned_property_cleaned": orphaned_property_cleaned
+    }
 
 
 # ========== PROPERTY REGISTRY ENDPOINTS ==========
@@ -791,50 +871,22 @@ async def import_json(file: UploadFile = File(...), db: Session = Depends(get_db
         for idx, event_data in enumerate(events_data):
             try:
                 event_create = EventCreate(**event_data)
-                # Use the existing create_event logic
-                db_event = Event(
-                    name=event_create.name,
-                    description=event_create.description,
-                    category=event_create.category,
-                    created_by=event_create.created_by or "bulk_import"
-                )
-                db.add(db_event)
-                db.flush()
-
-                for prop_create in event_create.properties:
-                    property_obj = db.query(Property).filter(
-                        Property.name == prop_create.property_name
-                    ).first()
-
-                    if property_obj:
-                        if property_obj.data_type != prop_create.data_type:
-                            errors.append(f"Event '{event_create.name}': Property '{prop_create.property_name}' type conflict")
-                            continue
-                    else:
-                        property_obj = Property(
-                            name=prop_create.property_name,
-                            data_type=prop_create.data_type,
-                            description=prop_create.description,
-                            created_by="bulk_import"
-                        )
-                        db.add(property_obj)
-                        db.flush()
-
-                    event_property = EventProperty(
-                        event_id=db_event.id,
-                        property_id=property_obj.id,
-                        property_type=prop_create.property_type,
-                        is_required=prop_create.is_required,
-                        example_value=prop_create.example_value
-                    )
-                    db.add(event_property)
-
+                _create_event_atomic(db, event_create, created_by_fallback="bulk_import")
                 db.commit()
                 imported_count += 1
 
-            except Exception as e:
-                errors.append(f"Row {idx + 1}: {str(e)}")
+            except HTTPException as e:
                 db.rollback()
+                errors.append(f"Row {idx + 1}: {e.detail}")
+            except ValidationError as e:
+                db.rollback()
+                errors.append(f"Row {idx + 1}: {e.errors()}")
+            except IntegrityError:
+                db.rollback()
+                errors.append(f"Row {idx + 1}: Integrity constraint conflict")
+            except Exception as e:
+                db.rollback()
+                errors.append(f"Row {idx + 1}: {str(e)}")
 
         return {
             "imported": imported_count,
@@ -844,6 +896,8 @@ async def import_json(file: UploadFile = File(...), db: Session = Depends(get_db
 
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -900,48 +954,19 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
                     created_by="bulk_import",
                     properties=[EventPropertyCreate(**p) for p in event_data['properties']]
                 )
-
-                db_event = Event(
-                    name=event_create.name,
-                    description=event_create.description,
-                    category=event_create.category,
-                    created_by="bulk_import"
-                )
-                db.add(db_event)
-                db.flush()
-
-                for prop_create in event_create.properties:
-                    property_obj = db.query(Property).filter(
-                        Property.name == prop_create.property_name
-                    ).first()
-
-                    if property_obj:
-                        # Check for data type conflict
-                        if property_obj.data_type != prop_create.data_type:
-                            errors.append(f"Event '{event_data['name']}': Property '{prop_create.property_name}' type conflict")
-                            continue
-                    else:
-                        property_obj = Property(
-                            name=prop_create.property_name,
-                            data_type=prop_create.data_type,
-                            description=prop_create.description,
-                            created_by="bulk_import"
-                        )
-                        db.add(property_obj)
-                        db.flush()
-
-                    event_property = EventProperty(
-                        event_id=db_event.id,
-                        property_id=property_obj.id,
-                        property_type=prop_create.property_type,
-                        is_required=prop_create.is_required,
-                        example_value=prop_create.example_value
-                    )
-                    db.add(event_property)
-
+                _create_event_atomic(db, event_create, created_by_fallback="bulk_import")
                 db.commit()
                 imported_count += 1
 
+            except HTTPException as e:
+                errors.append(f"Event '{event_data['name']}': {e.detail}")
+                db.rollback()
+            except ValidationError as e:
+                errors.append(f"Event '{event_data['name']}': {e.errors()}")
+                db.rollback()
+            except IntegrityError:
+                errors.append(f"Event '{event_data['name']}': Integrity constraint conflict")
+                db.rollback()
             except Exception as e:
                 errors.append(f"Event '{event_data['name']}': {str(e)}")
                 db.rollback()
@@ -952,5 +977,7 @@ async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)
             "errors": errors
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

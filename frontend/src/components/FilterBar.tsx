@@ -13,7 +13,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
   filters,
   onFiltersChange,
   filterOptions,
-  onToggle,
+  onToggle: _onToggle,
   isExpanded,
 }) => {
   const [localFilters, setLocalFilters] = useState<ActiveFilters>(filters);
@@ -58,118 +58,103 @@ const FilterBar: React.FC<FilterBarProps> = ({
 
   const hasActiveFilters = Object.values(localFilters).some(v => v !== undefined);
 
-  // Count active filters
-  const activeFilterCount = Object.values(localFilters).filter(v => v !== undefined).length;
+  const isDateRangeInvalid = Boolean(
+    localFilters.dateFrom &&
+    localFilters.dateTo &&
+    localFilters.dateFrom > localFilters.dateTo
+  );
+
+  if (!isExpanded) return null;
 
   return (
-    <div className="mb-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-      {/* Filter Header */}
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors rounded-lg"
-      >
-        <div className="flex items-center gap-2">
-          <svg
-            className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="font-medium text-gray-700 dark:text-gray-300">
-            Filters
-          </span>
-          {activeFilterCount > 0 && (
-            <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-500 text-white">
-              {activeFilterCount}
-            </span>
-          )}
-        </div>
+    <div className="mb-5 p-4 bg-card rounded-lg border border-border/60 animate-slide-down">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Filters
+        </h3>
         {hasActiveFilters && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClearFilters();
-            }}
-            className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            type="button"
+            onClick={handleClearFilters}
+            className="text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
           >
             Clear all
           </button>
         )}
-      </button>
+      </div>
 
-      {/* Filter Options */}
-      {isExpanded && (
-        <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Category Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Feature
-            </label>
-            <select
-              value={localFilters.category || ''}
-              onChange={handleCategoryChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Categories</option>
-              {filterOptions.categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Creator Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Creator
-            </label>
-            <select
-              value={localFilters.creator || ''}
-              onChange={handleCreatorChange}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Creators</option>
-              {filterOptions.creators.map((creator) => (
-                <option key={creator} value={creator}>
-                  {creator}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date From Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Created From
-            </label>
-            <input
-              type="text"
-              placeholder="YYYY-MM-DD"
-              value={localFilters.dateFrom ? localFilters.dateFrom.split('T')[0] : ''}
-              onChange={handleDateFromChange}
-              pattern="\d{4}-\d{2}-\d{2}"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-            />
-          </div>
-
-          {/* Date To Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Created To
-            </label>
-            <input
-              type="text"
-              placeholder="YYYY-MM-DD"
-              value={localFilters.dateTo ? localFilters.dateTo.split('T')[0] : ''}
-              onChange={handleDateToChange}
-              pattern="\d{4}-\d{2}-\d{2}"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-            />
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label htmlFor="filter-category" className="block text-[11px] font-semibold text-foreground mb-1.5">
+            Category
+          </label>
+          <select
+            id="filter-category"
+            value={localFilters.category || ''}
+            onChange={handleCategoryChange}
+            className="w-full h-8 px-2.5 text-xs border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-all"
+          >
+            <option value="">All</option>
+            {filterOptions.categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
         </div>
+
+        <div>
+          <label htmlFor="filter-creator" className="block text-[11px] font-semibold text-foreground mb-1.5">
+            Creator
+          </label>
+          <select
+            id="filter-creator"
+            value={localFilters.creator || ''}
+            onChange={handleCreatorChange}
+            className="w-full h-8 px-2.5 text-xs border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-all"
+          >
+            <option value="">All</option>
+            {filterOptions.creators.map((creator) => (
+              <option key={creator} value={creator}>
+                {creator}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="filter-date-from" className="block text-[11px] font-semibold text-foreground mb-1.5">
+            From
+          </label>
+          <input
+            id="filter-date-from"
+            type="date"
+            value={localFilters.dateFrom || ''}
+            onChange={handleDateFromChange}
+            max={localFilters.dateTo || undefined}
+            className="w-full h-8 px-2.5 text-xs border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-all font-mono"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="filter-date-to" className="block text-[11px] font-semibold text-foreground mb-1.5">
+            To
+          </label>
+          <input
+            id="filter-date-to"
+            type="date"
+            value={localFilters.dateTo || ''}
+            onChange={handleDateToChange}
+            min={localFilters.dateFrom || undefined}
+            className="w-full h-8 px-2.5 text-xs border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-all font-mono"
+          />
+        </div>
+      </div>
+
+      {isDateRangeInvalid && (
+        <p className="mt-2 text-[11px] text-destructive font-medium">
+          From date must be earlier than or equal to To date.
+        </p>
       )}
     </div>
   );

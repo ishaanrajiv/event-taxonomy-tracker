@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { ChangelogEntry } from '../types/api';
+import EmptyState from './EmptyState';
 
 interface ChangelogProps {
   changelog: ChangelogEntry[];
@@ -7,17 +9,44 @@ interface ChangelogProps {
 type ActionType = 'create' | 'update' | 'delete';
 
 export default function Changelog({ changelog }: ChangelogProps) {
-  const getActionColor = (action: string): string => {
-    const colors: Record<ActionType, string> = {
-      'create': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      'update': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      'delete': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
+
+  const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null;
+  };
+
+  const getStringValue = (value: unknown): string | null => {
+    return typeof value === 'string' ? value : null;
+  };
+
+  const getPropertySummary = (value: Record<string, unknown> | null | undefined) => {
+    if (!value || !isRecord(value.property)) return null;
+
+    const prop = value.property;
+    const name = getStringValue(prop.name);
+    const type = getStringValue(prop.type);
+    const dataType = getStringValue(prop.data_type);
+    if (!name || !type || !dataType) return null;
+
+    return { name, type, dataType };
+  };
+
+  const getPropertiesCount = (value: Record<string, unknown> | null | undefined): number | null => {
+    if (!value || !Array.isArray(value.properties)) return null;
+    return value.properties.length;
+  };
+
+  const getActionStyle = (action: string): { bg: string; text: string; dot: string } => {
+    const styles: Record<ActionType, { bg: string; text: string; dot: string }> = {
+      'create': { bg: 'bg-emerald-100 dark:bg-emerald-900/25', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
+      'update': { bg: 'bg-sky-100 dark:bg-sky-900/25', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500' },
+      'delete': { bg: 'bg-red-100 dark:bg-red-900/25', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
     };
-    return colors[action as ActionType] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    return styles[action as ActionType] || { bg: 'bg-muted', text: 'text-muted-foreground', dot: 'bg-muted-foreground' };
   };
 
   const formatValue = (value: Record<string, unknown> | string | null | undefined): string => {
-    if (!value) return '—';
+    if (!value) return '\u2014';
     if (typeof value === 'object') {
       return JSON.stringify(value, null, 2);
     }
@@ -25,34 +54,36 @@ export default function Changelog({ changelog }: ChangelogProps) {
   };
 
   const getEntityName = (entry: ChangelogEntry): string => {
-    // For events, try to get the event name
     if (entry.entity_type === 'event') {
-      const name = entry.new_value?.name || entry.old_value?.name;
+      const name = getStringValue(entry.new_value?.name) || getStringValue(entry.old_value?.name);
       return name ? `"${name}"` : `#${entry.entity_id}`;
     }
     return `#${entry.entity_id}`;
   };
 
   const getChangeSummary = (entry: ChangelogEntry): string | null => {
-    // For property add/remove actions
     if (entry.new_value?.action === 'property_added') {
-      const prop = entry.new_value.property;
-      return `Added property: ${prop.name} (${prop.type}, ${prop.data_type})`;
+      const prop = getPropertySummary(entry.new_value);
+      if (prop) {
+        return `Added property: ${prop.name} (${prop.type}, ${prop.dataType})`;
+      }
     }
     if (entry.old_value?.action === 'property_removed') {
-      const prop = entry.old_value.property;
-      return `Removed property: ${prop.name} (${prop.type}, ${prop.data_type})`;
+      const prop = getPropertySummary(entry.old_value);
+      if (prop) {
+        return `Removed property: ${prop.name} (${prop.type}, ${prop.dataType})`;
+      }
     }
 
-    // For event creation
-    if (entry.action === 'create' && entry.entity_type === 'event' && entry.new_value?.properties) {
-      const propCount = entry.new_value.properties.length;
+    if (entry.action === 'create' && entry.entity_type === 'event') {
+      const propCount = getPropertiesCount(entry.new_value);
+      if (propCount === null) return null;
       return `Created with ${propCount} ${propCount === 1 ? 'property' : 'properties'}`;
     }
 
-    // For event deletion
-    if (entry.action === 'delete' && entry.entity_type === 'event' && entry.old_value?.properties) {
-      const propCount = entry.old_value.properties.length;
+    if (entry.action === 'delete' && entry.entity_type === 'event') {
+      const propCount = getPropertiesCount(entry.old_value);
+      if (propCount === null) return null;
       return `Deleted (had ${propCount} ${propCount === 1 ? 'property' : 'properties'})`;
     }
 
@@ -60,68 +91,105 @@ export default function Changelog({ changelog }: ChangelogProps) {
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-        Changelog ({changelog.length})
-      </h2>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-        Audit trail of all changes to events and properties
-      </p>
+    <div className="p-5">
+      <div className="mb-5">
+        <h2 className="font-display text-lg font-bold text-foreground tracking-tight">
+          Changelog
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Audit trail of all changes to events and properties
+        </p>
+      </div>
 
       {changelog.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-          <p>No changes recorded yet.</p>
-        </div>
+        <EmptyState
+          title="No changes yet"
+          description="Changes will appear here as you create, update, or delete events."
+          icon="changelog"
+        />
       ) : (
-        <div className="space-y-4">
-          {changelog.map((entry) => {
+        <div className="space-y-1.5">
+          {changelog.map((entry, index) => {
             const summary = getChangeSummary(entry);
+            const actionStyle = getActionStyle(entry.action);
+            const isExpanded = expandedEntry === entry.id;
+
             return (
-              <div key={entry.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getActionColor(entry.action)}`}>
-                      {entry.action.toUpperCase()}
+              <div
+                key={entry.id}
+                className="border border-border/40 rounded-lg overflow-hidden transition-all hover:border-border/80 animate-fade-in"
+                style={{ animationDelay: `${index * 20}ms` }}
+              >
+                <div
+                  className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
+                  onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
+                >
+                  {/* Timeline dot */}
+                  <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${actionStyle.dot}`} />
+
+                  {/* Action badge */}
+                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${actionStyle.bg} ${actionStyle.text}`}>
+                    {entry.action}
+                  </span>
+
+                  {/* Entity */}
+                  <span className="text-xs font-medium text-foreground">
+                    {entry.entity_type} {getEntityName(entry)}
+                  </span>
+
+                  {/* Summary */}
+                  {summary && (
+                    <span className="hidden sm:inline text-[11px] text-muted-foreground truncate">
+                      {summary}
                     </span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {entry.entity_type} {getEntityName(entry)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {new Date(entry.changed_at).toLocaleString()}
-                  </div>
+                  )}
+
+                  <div className="flex-1" />
+
+                  {/* Timestamp */}
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                    {new Date(entry.changed_at).toLocaleDateString()}
+                  </span>
+
+                  {/* Expand indicator */}
+                  <svg
+                    className={`w-3 h-3 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
                 </div>
 
-                {entry.changed_by && (
-                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                    by {entry.changed_by}
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div className="border-t border-border/40 bg-muted/10 px-3.5 py-3 animate-fade-in">
+                    {entry.changed_by && (
+                      <p className="text-[11px] text-muted-foreground mb-2">
+                        Changed by <span className="font-medium text-foreground">{entry.changed_by}</span> at {new Date(entry.changed_at).toLocaleString()}
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {entry.old_value && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Before</div>
+                          <pre className="text-[11px] leading-relaxed bg-red-50/50 dark:bg-red-950/20 text-foreground p-2.5 rounded-md border border-red-200/30 dark:border-red-800/20 overflow-x-auto font-mono">
+                            {formatValue(entry.old_value)}
+                          </pre>
+                        </div>
+                      )}
+                      {entry.new_value && (
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">After</div>
+                          <pre className="text-[11px] leading-relaxed bg-emerald-50/50 dark:bg-emerald-950/20 text-foreground p-2.5 rounded-md border border-emerald-200/30 dark:border-emerald-800/20 overflow-x-auto font-mono">
+                            {formatValue(entry.new_value)}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-
-                {summary && (
-                  <div className="text-sm text-gray-700 dark:text-gray-300 mb-3 italic">
-                    {summary}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  {entry.old_value && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Before</div>
-                      <pre className="text-xs bg-red-50 dark:bg-red-900/20 text-gray-900 dark:text-gray-100 p-2 rounded border border-red-200 dark:border-red-800 overflow-x-auto">
-                        {formatValue(entry.old_value)}
-                      </pre>
-                    </div>
-                  )}
-                  {entry.new_value && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">After</div>
-                      <pre className="text-xs bg-green-50 dark:bg-green-900/20 text-gray-900 dark:text-gray-100 p-2 rounded border border-green-200 dark:border-green-800 overflow-x-auto">
-                        {formatValue(entry.new_value)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
               </div>
             );
           })}
