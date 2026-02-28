@@ -10,6 +10,7 @@ import Header from './components/Header';
 import IssuesPanel from './components/IssuesPanel';
 import PropertyRegistry from './components/PropertyRegistry';
 import { ToastContainer } from './components/Toast';
+import TrackingPlanList from './components/tracking-plan/TrackingPlanList';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useToast } from './hooks/useToast';
 import type { ChangelogEntry, Event, FilterOptions, Property, ActiveFilters } from './types/api';
@@ -19,7 +20,7 @@ const API_BASE = 'http://localhost:8000/api';
 const PAGE_SIZE = 25;
 const CURRENT_USER = 'user@example.com';
 
-type TabType = 'events' | 'issues' | 'properties' | 'changelog' | 'import';
+type TabType = 'events' | 'tracking-plans' | 'issues' | 'properties' | 'changelog' | 'import';
 type SortOrder = 'asc' | 'desc';
 type ConnectionState = 'connected' | 'connecting' | 'disconnected';
 
@@ -30,6 +31,15 @@ const TABS: { id: TabType; label: string; icon: ReactNode }[] = [
     icon: (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'tracking-plans',
+    label: 'Tracking Plans',
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
   },
@@ -74,6 +84,7 @@ const TABS: { id: TabType; label: string; icon: ReactNode }[] = [
 function App() {
   const [isDarkMode, setIsDarkMode] = useDarkMode();
   const [activeTab, setActiveTab] = useState<TabType>('events');
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [validationEvents, setValidationEvents] = useState<Event[]>([]);
   const [validationStatus, setValidationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('loading');
@@ -543,6 +554,26 @@ function App() {
                   onCopySuccess={toast.success}
                   onCopyError={toast.error}
                 />
+              )}
+              {activeTab === 'tracking-plans' && (
+                <>
+                  {selectedPlanId === null ? (
+                    <TrackingPlanList
+                      apiBase={API_BASE}
+                      onSelectPlan={setSelectedPlanId}
+                    />
+                  ) : (
+                    <div className="p-6">
+                      <div className="text-muted-foreground">Tracking Plan Workspace (to be implemented)</div>
+                      <button
+                        onClick={() => setSelectedPlanId(null)}
+                        className="mt-4 px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80"
+                      >
+                        Back to Plans
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
               {activeTab === 'properties' && <PropertyRegistry properties={properties} />}
               {activeTab === 'issues' && (

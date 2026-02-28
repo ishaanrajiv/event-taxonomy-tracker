@@ -49,7 +49,8 @@ export function initDatabase(db: Database): void {
       is_archived INTEGER NOT NULL DEFAULT 0,
       archived_at TEXT,
       archived_by TEXT,
-      lock_version INTEGER NOT NULL DEFAULT 0
+      lock_version INTEGER NOT NULL DEFAULT 0,
+      is_published INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE INDEX IF NOT EXISTS idx_events_name ON events(name);
@@ -125,6 +126,41 @@ export function initDatabase(db: Database): void {
       INSERT INTO events_fts(events_fts, rowid, name, description, category)
       VALUES ('delete', old.id, old.name, COALESCE(old.description, ''), COALESCE(old.category, ''));
     END;
+
+    CREATE TABLE IF NOT EXISTS tracking_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      prd_content TEXT,
+      status TEXT NOT NULL DEFAULT 'draft',
+      share_token TEXT UNIQUE,
+      created_by TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      approved_at TEXT,
+      approved_by TEXT,
+      archived_at TEXT,
+      archived_by TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tracking_plans_status ON tracking_plans(status);
+    CREATE INDEX IF NOT EXISTS idx_tracking_plans_share_token ON tracking_plans(share_token);
+
+    CREATE TABLE IF NOT EXISTS tracking_plan_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tracking_plan_id INTEGER NOT NULL,
+      event_id INTEGER NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      added_at TEXT NOT NULL,
+      added_by TEXT,
+      FOREIGN KEY(tracking_plan_id) REFERENCES tracking_plans(id) ON DELETE CASCADE,
+      FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_tracking_plan_event
+      ON tracking_plan_events(tracking_plan_id, event_id);
+    CREATE INDEX IF NOT EXISTS idx_tpe_plan_id ON tracking_plan_events(tracking_plan_id);
+    CREATE INDEX IF NOT EXISTS idx_tpe_event_id ON tracking_plan_events(event_id);
   `);
 
   db.exec(`
@@ -140,6 +176,8 @@ export function resetDatabase(db: Database): void {
     DROP TRIGGER IF EXISTS events_fts_insert;
     DROP TRIGGER IF EXISTS events_fts_update;
     DROP TRIGGER IF EXISTS events_fts_delete;
+    DROP TABLE IF EXISTS tracking_plan_events;
+    DROP TABLE IF EXISTS tracking_plans;
     DROP TABLE IF EXISTS event_versions;
     DROP TABLE IF EXISTS event_properties;
     DROP TABLE IF EXISTS properties;

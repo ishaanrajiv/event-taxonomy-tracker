@@ -181,3 +181,58 @@ export interface ActiveFilters {
   dateTo?: string;
   archivedState?: 'active' | 'all' | 'archived';
 }
+
+export type TrackingPlanStatus = 'draft' | 'in_review' | 'approved' | 'archived';
+
+export interface TrackingPlanBase {
+  title: string;
+  description?: string | null;
+  prd_content?: string | null;
+}
+
+export interface TrackingPlanCreate extends TrackingPlanBase {
+  created_by?: string | null;
+}
+
+export interface TrackingPlanUpdate {
+  title?: string;
+  description?: string | null;
+  prd_content?: string | null;
+}
+
+export interface TrackingPlanSummary extends TrackingPlanBase {
+  id: number;
+  status: TrackingPlanStatus;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  event_count: number;
+}
+
+export interface TrackingPlan extends TrackingPlanBase {
+  id: number;
+  status: TrackingPlanStatus;
+  share_token?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  events: Event[];
+}
+
+export interface StatusTransition {
+  status: TrackingPlanStatus;
+  changed_by?: string | null;
+}
+
+export interface LinkEventRequest {
+  event_id: number;
+  added_by?: string | null;
+}
+
+export interface ReorderEventsRequest {
+  event_ids: number[];
+}

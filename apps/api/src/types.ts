@@ -26,6 +26,7 @@ export interface EventCreatePayload {
   created_by?: string | null;
   change_reason?: string | null;
   properties: EventWriteProperty[];
+  is_published?: 0 | 1;
 }
 
 export interface EventUpdatePayload {
@@ -96,6 +97,7 @@ export interface EventRow {
   archived_at: string | null;
   archived_by: string | null;
   lock_version: number;
+  is_published: number;
 }
 
 export interface EventPropertyRow {
@@ -138,4 +140,58 @@ export interface PropertyRow {
 export interface SearchEventRow {
   id: number;
   name: string;
+}
+
+export type TrackingPlanStatus = 'draft' | 'in_review' | 'approved' | 'archived';
+
+export interface TrackingPlanRow {
+  id: number;
+  title: string;
+  description: string | null;
+  prd_content: string | null;
+  status: TrackingPlanStatus;
+  share_token: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
+}
+
+export interface TrackingPlanEventRow {
+  id: number;
+  tracking_plan_id: number;
+  event_id: number;
+  position: number;
+  added_at: string;
+  added_by: string | null;
+}
+
+export interface TrackingPlanCreatePayload {
+  title: string;
+  description?: string | null;
+  prd_content?: string | null;
+  created_by?: string | null;
+}
+
+export interface TrackingPlanUpdatePayload {
+  title?: string;
+  description?: string | null;
+  prd_content?: string | null;
+}
+
+export interface TrackingPlanStatusTransition {
+  status: 'in_review' | 'approved' | 'draft' | 'archived';
+  changed_by?: string | null;
+}
+
+export interface LinkEventPayload {
+  event_id: number;
+  added_by?: string | null;
+}
+
+export interface ReorderEventsPayload {
+  event_ids: number[];
 }

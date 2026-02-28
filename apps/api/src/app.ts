@@ -13,6 +13,18 @@ import {
   serializeVersionSummary,
   updateEventVersioned,
 } from './domain/versioning';
+import {
+  createTrackingPlan,
+  deleteTrackingPlan,
+  getTrackingPlan,
+  getTrackingPlanEvents,
+  linkEvent,
+  listTrackingPlans,
+  reorderEvents,
+  transitionStatus,
+  unlinkEvent,
+  updateTrackingPlan,
+} from './domain/tracking-plans';
 import { createDatabase, runInTransaction } from './db';
 import { HttpError, InvalidEventStateError, RegistryConflictError, VersionConflictError, DuplicatePropertyError } from './errors';
 import { parseCsv } from './utils/csv';
@@ -24,7 +36,14 @@ import {
   parseEventUpdatePayload,
   parsePropertyCreatePayload,
 } from './validation';
-import type { EventPropertyRow, EventRow, EventVersionRow, PropertyRow } from './types';
+import {
+  parseLinkEventPayload,
+  parseReorderEventsPayload,
+  parseStatusTransition,
+  parseTrackingPlanCreatePayload,
+  parseTrackingPlanUpdatePayload,
+} from './validation-tracking-plans';
+import type { EventPropertyRow, EventRow, EventVersionRow, PropertyRow, TrackingPlanRow } from './types';
 
 interface CreateAppOptions {
   db?: Database;
@@ -95,6 +114,14 @@ export function createApp(options: CreateAppOptions = {}): {
 
     const where: string[] = [];
     const params: Array<string | number> = [];
+
+    const isPublished = query.is_published !== undefined
+      ? query.is_published === 'true'
+        ? 1
+        : 0
+      : 1;
+    where.push('is_published = ?');
+    params.push(isPublished);
 
     if (onlyArchived) {
       where.push('is_archived = 1');
@@ -381,7 +408,8 @@ export function createApp(options: CreateAppOptions = {}): {
            e.is_archived,
            e.archived_at,
            e.archived_by,
-           e.lock_version
+           e.lock_version,
+           e.is_published
          FROM event_versions v
          INNER JOIN events e ON e.id = v.event_id
          ${where}
@@ -415,6 +443,7 @@ export function createApp(options: CreateAppOptions = {}): {
       archived_at: string | null;
       archived_by: string | null;
       lock_version: number;
+      is_published: number;
     }>;
 
     const changelog = rows.map((row) => {
@@ -432,6 +461,7 @@ export function createApp(options: CreateAppOptions = {}): {
         archived_at: row.archived_at,
         archived_by: row.archived_by,
         lock_version: row.lock_version,
+        is_published: row.is_published,
       };
 
       const version: EventVersionRow = {
@@ -799,6 +829,128 @@ export function createApp(options: CreateAppOptions = {}): {
     }
 
     return c.json({ imported: importedCount, total: eventsMap.size, errors });
+  });
+
+  app.get('/api/tracking-plans', (c) => {
+    const query = c.req.query();
+    const status = query.status as 'draft' | 'in_review' | 'approved' | 'archived' | undefined;
+
+    const plans = listTrackingPlans(db, status ? { status } : {});
+
+    const plansWithCounts = plans.map((plan) => {
+      const eventCount = db
+        .query('SELECT COUNT(*) as count FROM tracking_plan_events WHERE tracking_plan_id = ?')
+        .get(plan.id) as { count: number };
+
+      return {
+        ...plan,
+        event_count: eventCount.count,
+      };
+    });
+
+    return c.json(plansWithCounts);
+  });
+
+  app.post('/api/tracking-plans', async (c) => {
+    const payload = parseTrackingPlanCreatePayload(await parseJsonBody(c.req.raw));
+    const plan = runInTransaction(db, () => createTrackingPlan(db, payload));
+    return c.json(plan, 201);
+  });
+
+  app.get('/api/tracking-plans/:planId', (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const plan = getTrackingPlan(db, planId);
+
+    if (!plan) {
+      throw new HttpError(404, 'Tracking plan not found');
+    }
+
+    const events = getTrackingPlanEvents(db, planId).map((event) =>
+      serializeEvent(event, getEventProperties(db, event.id)),
+    );
+
+    return c.json({
+      ...plan,
+      events,
+    });
+  });
+
+  app.put('/api/tracking-plans/:planId', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const payload = parseTrackingPlanUpdatePayload(await parseJsonBody(c.req.raw));
+    const plan = runInTransaction(db, () => updateTrackingPlan(db, planId, payload));
+    return c.json(plan);
+  });
+
+  app.delete('/api/tracking-plans/:planId', (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    runInTransaction(db, () => deleteTrackingPlan(db, planId));
+    return c.json({ success: true });
+  });
+
+  app.post('/api/tracking-plans/:planId/status', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const transition = parseStatusTransition(await parseJsonBody(c.req.raw));
+    const plan = runInTransaction(db, () => transitionStatus(db, planId, transition));
+    return c.json(plan);
+  });
+
+  app.post('/api/tracking-plans/:planId/events', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const payload = parseLinkEventPayload(await parseJsonBody(c.req.raw));
+    runInTransaction(db, () => linkEvent(db, planId, payload));
+    return c.json({ success: true });
+  });
+
+  app.post('/api/tracking-plans/:planId/events/create', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const eventPayload = parseEventCreatePayload(await parseJsonBody(c.req.raw));
+
+    const event = runInTransaction(db, () => {
+      const createdEvent = createEventVersioned(db, { ...eventPayload, is_published: 0 });
+      linkEvent(db, planId, { event_id: createdEvent.id });
+      return createdEvent;
+    });
+
+    return c.json(event, 201);
+  });
+
+  app.delete('/api/tracking-plans/:planId/events/:eventId', (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const eventId = parsePathInt(c.req.param('eventId'), 'eventId');
+    runInTransaction(db, () => unlinkEvent(db, planId, eventId));
+    return c.json({ success: true });
+  });
+
+  app.put('/api/tracking-plans/:planId/events/reorder', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+    const payload = parseReorderEventsPayload(await parseJsonBody(c.req.raw));
+    runInTransaction(db, () => reorderEvents(db, planId, payload.event_ids));
+    return c.json({ success: true });
+  });
+
+  app.get('/api/share/:shareToken', (c) => {
+    const shareToken = c.req.param('shareToken');
+    const plan = db
+      .query<TrackingPlanRow, [string]>('SELECT * FROM tracking_plans WHERE share_token = ?')
+      .get(shareToken);
+
+    if (!plan) {
+      throw new HttpError(404, 'Shared tracking plan not found');
+    }
+
+    if (plan.status === 'draft' || plan.status === 'archived') {
+      throw new HttpError(404, 'Shared tracking plan not found');
+    }
+
+    const events = getTrackingPlanEvents(db, plan.id).map((event) =>
+      serializeEvent(event, getEventProperties(db, event.id)),
+    );
+
+    return c.json({
+      ...plan,
+      events,
+    });
   });
 
   return {

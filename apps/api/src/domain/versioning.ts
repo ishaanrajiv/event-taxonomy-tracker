@@ -398,6 +398,7 @@ export function createEventVersioned(db: Database, payload: EventCreatePayload):
   const registry = upsertRegistryProperties(db, snapshot.properties, payload.created_by ?? null);
 
   const now = nowIso();
+  const isPublished = payload.is_published ?? 1;
   const created = db
     .query(
       `INSERT INTO events (
@@ -412,10 +413,11 @@ export function createEventVersioned(db: Database, payload: EventCreatePayload):
         is_archived,
         archived_at,
         archived_by,
-        lock_version
-      ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 0, NULL, NULL, 0)`,
+        lock_version,
+        is_published
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 0, NULL, NULL, 0, ?)`,
     )
-    .run(snapshot.event.name, snapshot.event.description, snapshot.event.category, now, now, payload.created_by ?? null);
+    .run(snapshot.event.name, snapshot.event.description, snapshot.event.category, now, now, payload.created_by ?? null, isPublished);
 
   const eventId = Number(created.lastInsertRowid);
   const event = db.query('SELECT * FROM events WHERE id = ?').get(eventId) as EventRow;
