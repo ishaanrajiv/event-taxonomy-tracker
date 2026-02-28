@@ -11,6 +11,7 @@ import IssuesPanel from './components/IssuesPanel';
 import PropertyRegistry from './components/PropertyRegistry';
 import { ToastContainer } from './components/Toast';
 import TrackingPlanList from './components/tracking-plan/TrackingPlanList';
+import TrackingPlanWorkspace from './components/tracking-plan/TrackingPlanWorkspace';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useToast } from './hooks/useToast';
 import type { ChangelogEntry, Event, FilterOptions, Property, ActiveFilters } from './types/api';
@@ -563,15 +564,14 @@ function App() {
                       onSelectPlan={setSelectedPlanId}
                     />
                   ) : (
-                    <div className="p-6">
-                      <div className="text-muted-foreground">Tracking Plan Workspace (to be implemented)</div>
-                      <button
-                        onClick={() => setSelectedPlanId(null)}
-                        className="mt-4 px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80"
-                      >
-                        Back to Plans
-                      </button>
-                    </div>
+                    <TrackingPlanWorkspace
+                      planId={selectedPlanId}
+                      apiBase={API_BASE}
+                      currentUser={CURRENT_USER}
+                      onBack={() => setSelectedPlanId(null)}
+                      onSuccess={toast.success}
+                      onError={toast.error}
+                    />
                   )}
                 </>
               )}

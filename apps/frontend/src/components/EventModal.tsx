@@ -7,6 +7,7 @@ interface EventModalProps {
   initialEvent: Event | null;
   onClose: (refresh: boolean) => void;
   apiBase: string;
+  trackingPlanId?: number;
 }
 
 interface FormState {
@@ -39,7 +40,7 @@ const toPropertyFormState = (property: EventWriteProperty, id = createLocalId())
   description: property.description || '',
 });
 
-export default function EventModal({ event, initialEvent, onClose, apiBase }: EventModalProps) {
+export default function EventModal({ event, initialEvent, onClose, apiBase, trackingPlanId }: EventModalProps) {
   const [formState, setFormState] = useState<FormState>({
     name: '',
     description: '',
@@ -289,7 +290,12 @@ export default function EventModal({ event, initialEvent, onClose, apiBase }: Ev
           change_reason: toNullable(nextFormState.change_reason),
         });
       } else {
-        await axios.post(`${apiBase}/events`, {
+        // Create event - use tracking plan endpoint if trackingPlanId is provided
+        const endpoint = trackingPlanId
+          ? `${apiBase}/tracking-plans/${trackingPlanId}/events/create`
+          : `${apiBase}/events`;
+
+        await axios.post(endpoint, {
           ...payload,
           created_by: nextFormState.created_by,
           change_reason: toNullable(nextFormState.change_reason),

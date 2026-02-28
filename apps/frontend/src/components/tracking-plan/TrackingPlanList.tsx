@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import type { TrackingPlanSummary, TrackingPlanStatus } from '../../types/api';
 import EmptyState from '../EmptyState';
-import Skeleton from '../Skeleton';
+import { Skeleton } from '../Skeleton';
 
 interface TrackingPlanListProps {
   apiBase: string;
   onSelectPlan: (planId: number) => void;
-  onRefresh?: () => void;
 }
 
 const STATUS_BADGES: Record<TrackingPlanStatus, { label: string; className: string }> = {
@@ -17,7 +16,7 @@ const STATUS_BADGES: Record<TrackingPlanStatus, { label: string; className: stri
   archived: { label: 'Archived', className: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
 };
 
-export default function TrackingPlanList({ apiBase, onSelectPlan, onRefresh }: TrackingPlanListProps) {
+export default function TrackingPlanList({ apiBase, onSelectPlan }: TrackingPlanListProps) {
   const [plans, setPlans] = useState<TrackingPlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<TrackingPlanStatus | 'all'>('all');
@@ -116,12 +115,7 @@ export default function TrackingPlanList({ apiBase, onSelectPlan, onRefresh }: T
       {plans.length === 0 ? (
         <EmptyState
           title="No tracking plans"
-          message="Create your first tracking plan to get started"
-          icon={
-            <svg className="h-12 w-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          }
+          description="Create your first tracking plan to get started"
           action={{ label: 'Create Plan', onClick: handleCreatePlan }}
         />
       ) : (
