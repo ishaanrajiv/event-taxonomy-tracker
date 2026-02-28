@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.50",
+    "@ai-sdk/google": "^3.0.34",
+    "@ai-sdk/openai": "^3.0.37",
     "ai": "^6.0.105",
     "hono": "^4.10.6",
     "zod": "^4.3.6"

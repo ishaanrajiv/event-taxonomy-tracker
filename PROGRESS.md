@@ -150,31 +150,92 @@ draft → in_review → approved → archived
 
 ---
 
-## 🔄 Phase 3: LLM Event Generation (In Progress)
+## ✅ Phase 3: LLM Event Generation (Complete)
 
 ### Backend
-- [ ] Install Vercel AI SDK packages (`ai`, `@ai-sdk/anthropic`)
-- [ ] Create `apps/api/src/llm/provider.ts` - Anthropic provider factory
-- [ ] Create `apps/api/src/llm/prompt.ts` - Prompt builder with context
-- [ ] Create `apps/api/src/llm/generate.ts` - Event generation with structured output
-- [ ] Create `apps/api/src/llm/types.ts` - Zod schemas for validation
-- [ ] Add `POST /api/tracking-plans/:planId/generate` endpoint
-- [ ] Environment variable: `ANTHROPIC_API_KEY`
+- [x] **Install Vercel AI SDK packages** (`ai`, `@ai-sdk/anthropic`)
+  - Installed via Bun: `ai@4.2.17` and `@ai-sdk/anthropic@1.0.11`
+
+- [x] **LLM Module** (`apps/api/src/llm/`)
+  - `provider.ts` - Anthropic provider factory using Claude Sonnet 4.5 (`claude-sonnet-4-20250514`)
+  - `types.ts` - Zod schemas for structured output validation (`PropertySchema`, `SuggestedEventSchema`, `GeneratedEventsSchema`)
+  - `generate.ts` - Event generation function with deduplication logic
+  - `prompt.ts` - Dynamic prompt builder with context injection
+  - `guidelines.md` - **Editable markdown file** with LLM guidelines (naming conventions, property types, best practices)
+
+- [x] **API Endpoint**
+  - `POST /api/tracking-plans/:planId/generate` - Generate events from PRD
+  - Returns: `{ suggested_events: SuggestedEvent[], usage: { promptTokens, completionTokens, totalTokens } }`
+  - Validates PRD content exists before generation
+  - Uses Vercel AI SDK's `generateObject()` for structured output
+
+- [x] **Environment Configuration**
+  - `ANTHROPIC_API_KEY` required in environment
+  - SDK automatically reads from environment variable
 
 ### Frontend
-- [ ] Create `GenerateEventsPanel` component
-- [ ] "Generate from PRD" button in PlanEventList
-- [ ] Display LLM suggestions with accept/reject/edit actions
-- [ ] Show duplicate warnings for similar events
-- [ ] Bulk "Accept All" action
-- [ ] Token usage indicator
+- [x] **GenerateEventsPanel Component**
+  - Modal dialog with gradient "Generate" button
+  - Loading state with spinner during generation
+  - Displays suggested events with checkboxes
+  - Auto-selects non-duplicate events
+  - Shows duplicate warnings with orange badges
+  - Event cards with name, description, category, reasoning, properties
+  - Expandable property details
+  - Token usage stats display (prompt/completion/total)
+  - Regenerate button for new suggestions
+  - "Accept Selected" bulk action
+
+- [x] **PlanEventList Integration**
+  - Added gradient "Generate" button in toolbar
+  - Opens GenerateEventsPanel modal
+  - `handleAcceptGeneratedEvents` creates events in parallel via API
+  - Success message with event count
 
 ### LLM Prompt Context
-- PRD content from the tracking plan
-- All existing published events (for dedup detection)
-- Property registry (for reuse)
-- Naming conventions (Title Case events, snake_case properties)
-- Available property types and data types
+The prompt builder (`buildGenerationPrompt`) includes:
+
+1. **Guidelines** (from `guidelines.md`)
+   - Event naming: Title Case (e.g., "Checkout Started")
+   - Property naming: **Title Case** (e.g., "Cart ID", "User Email")
+   - Property types: event/user/super with examples
+   - Data types: String/Int/Float/Boolean/List/JSON with usage
+   - Best practices: reuse, required vs optional, duplicate detection
+
+2. **Existing Events** (up to 100 most recent)
+   - Used for duplicate detection
+   - Format: `"Event Name" (category): description`
+
+3. **Property Registry** (all distinct properties)
+   - Used for property reuse
+   - Format: `property_name (data_type)`
+
+4. **10 Random Example Events** (with properties)
+   - Provides broader context for quality and structure
+   - Shows realistic event/property patterns
+   - Fetched using `ORDER BY RANDOM() LIMIT 10`
+
+5. **PRD Content**
+   - User-provided product requirements
+
+6. **Plan Context**
+   - Tracking plan title
+
+### LLM Model
+- **Model**: Claude Sonnet 4.5 (`claude-sonnet-4-20250514`)
+- **Provider**: Anthropic via Vercel AI SDK
+- **Output Format**: Structured JSON with Zod schema validation
+
+### Property Naming Convention
+**Important**: Property names use **Title Case**, not snake_case:
+- ✅ `User ID`, `Cart Total`, `Is Premium Member`
+- ❌ `user_id`, `cart_total`, `is_premium_member`
+
+This applies to:
+- LLM-generated events
+- Manually created events
+- Property registry
+- All documentation and examples
 
 ---
 

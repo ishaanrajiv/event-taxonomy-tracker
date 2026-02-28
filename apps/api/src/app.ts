@@ -25,6 +25,7 @@ import {
   unlinkEvent,
   updateTrackingPlan,
 } from './domain/tracking-plans';
+import { generateEventsFromPrd } from './llm/generate';
 import { createDatabase, runInTransaction } from './db';
 import { HttpError, InvalidEventStateError, RegistryConflictError, VersionConflictError, DuplicatePropertyError } from './errors';
 import { parseCsv } from './utils/csv';
@@ -927,6 +928,38 @@ export function createApp(options: CreateAppOptions = {}): {
     const payload = parseReorderEventsPayload(await parseJsonBody(c.req.raw));
     runInTransaction(db, () => reorderEvents(db, planId, payload.event_ids));
     return c.json({ success: true });
+  });
+
+  app.post('/api/tracking-plans/:planId/generate', async (c) => {
+    const planId = parsePathInt(c.req.param('planId'), 'planId');
+
+    const plan = getTrackingPlan(db, planId);
+    if (!plan) {
+      throw new HttpError(404, 'Tracking plan not found');
+    }
+
+    if (!plan.prd_content || plan.prd_content.trim().length === 0) {
+      throw new HttpError(400, 'PRD content is required for event generation');
+    }
+
+    try {
+      const result = await generateEventsFromPrd({
+        db,
+        planId,
+        planTitle: plan.title,
+        prdContent: plan.prd_content,
+      });
+
+      return c.json({
+        suggested_events: result.events,
+        usage: result.usage,
+      });
+    } catch (error: any) {
+      if (error.message?.includes('ANTHROPIC_API_KEY')) {
+        throw new HttpError(500, 'LLM API key not configured. Please set ANTHROPIC_API_KEY environment variable.');
+      }
+      throw error;
+    }
   });
 
   app.get('/api/share/:shareToken', (c) => {

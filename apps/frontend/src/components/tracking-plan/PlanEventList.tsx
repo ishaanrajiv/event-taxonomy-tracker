@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import axios from 'axios';
-import type { Event } from '../../types/api';
+import type { Event, EventWriteProperty } from '../../types/api';
 import PlanEventCard from './PlanEventCard';
 import LinkEventDialog from './LinkEventDialog';
 import EventModal from '../EventModal';
+import GenerateEventsPanel from './GenerateEventsPanel';
 
 interface PlanEventListProps {
   planId: number;
@@ -28,6 +29,7 @@ export default function PlanEventList({
 }: PlanEventListProps) {
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGeneratePanelOpen, setIsGeneratePanelOpen] = useState(false);
 
   const handleUnlinkEvent = async (eventId: number) => {
     try {
@@ -51,6 +53,37 @@ export default function PlanEventList({
     }
   };
 
+  const handleAcceptGeneratedEvents = async (
+    suggestions: Array<{
+      name: string;
+      description: string;
+      category: string | null;
+      properties: EventWriteProperty[];
+    }>
+  ) => {
+    try {
+      // Create events in parallel
+      const promises = suggestions.map((event) =>
+        axios.post(`${apiBase}/tracking-plans/${planId}/events/create`, {
+          name: event.name,
+          description: event.description,
+          category: event.category,
+          properties: event.properties,
+          created_by: currentUser,
+        })
+      );
+
+      await Promise.all(promises);
+
+      onSuccess(`Created ${suggestions.length} event${suggestions.length > 1 ? 's' : ''}`);
+      setIsGeneratePanelOpen(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to create generated events:', error);
+      onError('Failed to create some events');
+    }
+  };
+
   return (
     <div className="border border-border rounded-lg bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -64,6 +97,15 @@ export default function PlanEventList({
 
         {!disabled && (
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsGeneratePanelOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+              Generate
+            </button>
             <button
               onClick={() => setIsLinkDialogOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors"
@@ -153,6 +195,16 @@ export default function PlanEventList({
           onClose={handleModalClose}
           apiBase={apiBase}
           trackingPlanId={planId}
+        />
+      )}
+
+      {isGeneratePanelOpen && (
+        <GenerateEventsPanel
+          planId={planId}
+          apiBase={apiBase}
+          onClose={() => setIsGeneratePanelOpen(false)}
+          onAccept={handleAcceptGeneratedEvents}
+          onError={onError}
         />
       )}
     </div>
