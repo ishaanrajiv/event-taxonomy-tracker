@@ -1,13 +1,22 @@
 {
   "name": "event-taxonomy-tracker",
   "private": true,
+  "version": "3.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c magenta,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && uv run uvicorn api:app --reload --port 8000",
-    "dev:frontend": "cd frontend && npm run dev",
-    "verify:frontend": "npm --prefix frontend run verify"
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm run dev --workspace @tracker/api\" \"npm run dev --workspace @tracker/web\"",
+    "dev:api": "npm run dev --workspace @tracker/api",
+    "dev:web": "npm run dev --workspace @tracker/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
   }
 }

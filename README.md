@@ -1,233 +1,87 @@
-# Event Taxonomy Tracker
+# Event Taxonomy Tracker (Tracking Plan Platform Rewrite)
 
-A simple POC for managing analytics event taxonomies with property registry, conflict detection, and automatic changelog.
+This repository now uses a local-first TypeScript monorepo for a workflow-first analytics planning platform.
 
-## Security Notice
+## What Changed
 
-**This is a proof-of-concept tool intended for development and learning purposes.**
+- New architecture with npm workspaces:
+  - `apps/web`: React 19 + Vite + TypeScript SPA
+  - `apps/api`: Fastify + Drizzle + SQLite API server
+  - `packages/contracts`: shared Zod schemas + inferred types
+  - `storage/`: local uploaded source files
+- Legacy code moved to:
+  - `legacy/backend` (Python/FastAPI)
+  - `legacy/frontend` (previous SPA)
 
-For production deployment, you must implement:
-- ✅ **Authentication and authorization** - Currently has no access control
-- ✅ **CORS configuration** - Currently allows all localhost origins
-- ✅ **Production database** - Use PostgreSQL instead of SQLite
-- ✅ **Rate limiting** - Protect against abuse
-- ✅ **Input validation** - Add field length limits and sanitization
-- ✅ **HTTPS/TLS** - Secure transport layer
-- ✅ **Security headers** - CSP, HSTS, etc.
-- ✅ **Logging and monitoring** - Track security events
+## Product Model
 
-**Do not deploy this POC to production without implementing proper security measures.**
+- `Feature` is the top-level workspace.
+- Each Feature owns one mutable `Tracking Plan`.
+- `Requirements` are extracted/manual planning units.
+- `Catalog` stores published definitions only.
+- `Release` is immutable publish output.
 
-## Features
+## Local Development
 
-- **Event Management**: Create, edit, and delete analytics events
-- **Property Registry**: Centralized registry of all unique properties with data type enforcement
-- **Conflict Detection**: Prevents property redefinition with different data types
-- **Fuzzy Search**: Suggests similar property names to prevent duplicates
-- **Automatic Changelog**: Full audit trail of all changes
-- **Search & Filter**: Find events by name or description
-
-## Tech Stack
-
-**Backend:**
-- FastAPI (Python)
-- SQLite database
-- SQLAlchemy ORM
-- Managed with `uv`
-
-**Frontend:**
-- React 19 + TypeScript
-- Vite build tool
-- Tailwind CSS
-- Axios for API calls
-
-## Quick Start
+1. Install workspace dependencies:
 
 ```bash
-# Install dependencies
-uv sync                          # Backend dependencies
-npm install --prefix frontend     # Frontend dependencies
-npm install                       # Root dependencies (concurrently)
+npm install --verbose
+```
 
-# Run both servers with one command
+2. Start API + web app:
+
+```bash
 npm run dev
-
-# Or run manually in separate terminals:
-# Terminal 1 - Backend
-cd backend && uv run uvicorn api:app --reload --port 8000
-
-# Terminal 2 - Frontend
-cd frontend && npm run dev
 ```
 
-Then visit:
-- **Frontend**: http://localhost:5173
-- **Backend API Docs**: http://localhost:8000/docs
+3. Open:
 
-## Usage
+- Web: [http://localhost:5173](http://localhost:5173)
+- API health: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-### Creating an Event
+## AI Setup (Optional)
 
-1. Click "New Event" button
-2. Fill in event details (name, description, category)
-3. Add properties:
-   - Type a property name - the system will suggest similar existing properties
-   - Select property type (event, user, or super)
-   - Choose data type (String, Int, Float, Boolean, List, JSON)
-   - Mark as required if needed
-   - Add example value
-4. Click "Create Event"
+AI actions are explicit-trigger only. If environment variables are missing, AI is disabled in the UI.
 
-### Property Conflict Detection
-
-The system enforces data type consistency. If you try to create a property with a name that already exists but with a different data type, you'll get an error:
-
-```
-❌ Property 'user_id' already exists with data type 'String'.
-   Cannot redefine as 'Int'.
-```
-
-This ensures consistency across your entire event taxonomy.
-
-### Fuzzy Search
-
-When typing a property name, the system automatically searches for similar existing properties and suggests them with similarity scores. This helps prevent creating duplicate properties with slightly different names (e.g., `user_id`, `userId`, `user-id`).
-
-### Changelog
-
-Switch to the "Changelog" tab to see a full audit trail of all changes:
-- Event creation, updates, and deletions
-- Property additions
-- Who made the change and when
-- Before/after values for updates
-
-## API Endpoints
-
-### Events
-- `GET /api/events` - List all events (with optional search query)
-- `POST /api/events` - Create new event
-- `GET /api/events/{id}` - Get single event
-- `PUT /api/events/{id}` - Update event
-- `DELETE /api/events/{id}` - Delete event
-
-### Properties
-- `GET /api/properties` - List all properties
-- `POST /api/properties` - Create new property
-- `GET /api/properties/suggest?q=<name>` - Get fuzzy match suggestions
-
-### Changelog
-- `GET /api/changelog` - Get recent changes
-- `GET /api/changelog?entity_type=event&entity_id=123` - Filter by entity
-
-## Project Structure
-
-```
-event-taxonomy-tracker/
-├── backend/
-│   ├── api.py              # FastAPI application and endpoints
-│   ├── database.py         # SQLAlchemy models and database setup
-│   ├── models.py           # Pydantic models for API validation
-│   ├── utils.py            # Utility functions (fuzzy search)
-│   ├── seed_data.py        # Sample data seeder (optional)
-│   └── pyproject.toml      # Python dependencies (managed by uv)
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx                    # Main app component
-│   │   ├── main.tsx                   # Entry point
-│   │   ├── types/
-│   │   │   └── api.ts                 # TypeScript type definitions
-│   │   ├── hooks/
-│   │   │   └── useDarkMode.ts         # Dark mode hook
-│   │   ├── components/
-│   │   │   ├── EventList.tsx          # Event list with expandable rows
-│   │   │   ├── EventModal.tsx         # Create/edit event modal
-│   │   │   ├── PropertyRegistry.tsx   # Property registry view
-│   │   │   ├── Changelog.tsx          # Changelog view
-│   │   │   └── BulkImport.tsx         # Bulk import component
-│   │   └── index.css                  # Tailwind CSS
-│   ├── tsconfig.json           # TypeScript configuration
-│   ├── package.json
-│   └── tailwind.config.js
-├── package.json            # Root package.json for concurrently
-└── README.md
-```
-
-## Example API Calls
-
-### Create an Event
+Set these for `apps/api` runtime:
 
 ```bash
-curl -X POST http://localhost:8000/api/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Button Clicked",
-    "description": "User clicks a button",
-    "category": "Engagement",
-    "properties": [
-      {
-        "property_name": "button_id",
-        "property_type": "event",
-        "data_type": "String",
-        "is_required": true,
-        "example_value": "cta-signup"
-      }
-    ]
-  }'
+export OPENAI_API_KEY="..."
+export AI_MODEL="gpt-4o-mini"
 ```
 
-### Search for Similar Properties
+## Current Coverage
+
+Implemented surfaces include:
+
+- Feature workspace routes (`overview`, `prd`, `requirements`, `tracking-plan`, `validation`, `review`)
+- Source ingest (paste + upload metadata, local file storage, parser fallbacks)
+- Requirements CRUD + ordering
+- Tracking plan event CRUD + requirement links
+- Deterministic validation recompute and issue persistence
+- Lightweight comments/threads
+- AI run lifecycle endpoints with polling + SSE stream endpoint
+- Whole-plan publish path + release/version writes
+- Catalog views, event detail, version history, property registry
+- Standalone `New Event` flow
+
+## Testing
+
+Run all workspace tests:
 
 ```bash
-curl "http://localhost:8000/api/properties/suggest?q=user"
+npm run test
 ```
 
-Response:
-```json
-{
-  "query": "user",
-  "suggestions": [
-    {
-      "name": "user_id",
-      "data_type": "String",
-      "similarity": 0.727
-    }
-  ]
-}
+Run type checks:
+
+```bash
+npm run typecheck
 ```
 
-## Development Notes
+## Notes
 
-### What's Included in POC
-
-✅ Event + Property management with normalized model
-✅ Property registry with type enforcement
-✅ Similar name suggestions (fuzzy matching)
-✅ Conflict detection (same property name, different data type)
-✅ Full changelog (automatic)
-✅ Search/filter
-✅ Dark mode support
-✅ Bulk import/export (CSV & JSON)
-✅ TypeScript frontend with full type safety
-✅ Simple UI with Tailwind CSS  
-
-### Out of Scope for POC
-
-The following features were intentionally left out but could be added:
-
-- Code snippet generation (SDK integration samples)
-- Granular permissions/roles (currently open access)
-- Google Sheets import/export
-- Status workflow (draft, approved, etc.)
-- User authentication (uses placeholder user emails)
-- Production deployment configuration
-
-### Database
-
-The POC uses SQLite for simplicity. For production:
-1. Update the connection string in `database.py` to use PostgreSQL
-2. Install `psycopg2` or `asyncpg`
-3. Update the `SQLALCHEMY_DATABASE_URL`
-
-## License
-
-MIT
+- Persistence uses local SQLite (`apps/api/data/tracking-plan.db`) and filesystem storage (`storage/`).
+- No auth/permissions, no remote DB, and no deployment pipeline are included in this version.
+- Legacy Python/old frontend remain available under `legacy/` until final cutover cleanup.

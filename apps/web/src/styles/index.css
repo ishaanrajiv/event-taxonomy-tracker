@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:opsz,wght@9..144,300;9..144,500&family=IBM+Plex+Sans+Condensed:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --shell-bg: #0c1414;
+  --shell-soft: #122022;
+  --shell-card: #17282b;
+  --shell-stroke: #2f4a4d;
+  --shell-ink: #ebefe7;
+  --shell-accent: #e96e2c;
+  --shell-accent-soft: #f4ae7f;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'IBM Plex Sans Condensed', sans-serif;
+  background: radial-gradient(circle at 15% 15%, rgba(233, 110, 44, 0.18), transparent 30%),
+    radial-gradient(circle at 85% 5%, rgba(100, 188, 166, 0.22), transparent 26%),
+    linear-gradient(160deg, #090f10 0%, #0c1414 45%, #111c1f 100%);
+  color: var(--shell-ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.bg-shell {
+  background-color: var(--shell-bg);
+}
+
+.bg-shell-soft {
+  background-color: var(--shell-soft);
+}
+
+.text-shell-ink {
+  color: var(--shell-ink);
+}
+
+.border-shell-stroke {
+  border-color: var(--shell-stroke);
+}
+
+.bg-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.font-display {
+  font-family: 'Bebas Neue', sans-serif;
+}
+
+.panel {
+  border: 1px solid var(--shell-stroke);
+  border-radius: 1.25rem;
+  background: linear-gradient(160deg, rgba(23, 40, 43, 0.86), rgba(13, 21, 24, 0.9));
+  padding: 1rem;
+  box-shadow: 0 24px 40px -32px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: rgba(235, 239, 231, 0.64);
+}
+
+.input-shell {
+  width: 100%;
+  border: 1px solid var(--shell-stroke);
+  border-radius: 0.8rem;
+  background: rgba(7, 12, 14, 0.65);
+  color: var(--shell-ink);
+  padding: 0.65rem 0.8rem;
+  font-family: 'Fraunces', serif;
+  font-size: 0.95rem;
+}
+
+.input-shell:focus {
+  outline: 2px solid rgba(233, 110, 44, 0.45);
+  outline-offset: 1px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(233, 110, 44, 0.55);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(233, 110, 44, 0.95), rgba(206, 74, 28, 0.95));
+  color: #17100c;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.73rem;
+  padding: 0.62rem 1.05rem;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px -14px rgba(233, 110, 44, 1);
+}
+
+.action-btn.alt {
+  background: transparent;
+  color: var(--shell-accent-soft);
+}
+
+.chip {
+  border: 1px solid var(--shell-stroke);
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  color: rgba(235, 239, 231, 0.85);
+}
+
+.chip.active {
+  border-color: rgba(233, 110, 44, 0.7);
+  background: rgba(233, 110, 44, 0.2);
+  color: #ffd8bd;
+}
+
+.link-inline {
+  color: #ffd8bd;
+  text-decoration: underline;
+  text-underline-offset: 0.18rem;
+}
