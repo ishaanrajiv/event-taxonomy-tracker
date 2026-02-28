@@ -9,9 +9,20 @@ describe('Header', () => {
     expect(screen.getByText('Tracker')).toBeInTheDocument();
   });
 
-  it('should render status indicator', () => {
+  it('should hide status indicator when connected', () => {
     render(<Header isDarkMode={false} onToggleDarkMode={vi.fn()} />);
-    expect(screen.getByText('Operational')).toBeInTheDocument();
+    expect(screen.queryByText('Connecting')).not.toBeInTheDocument();
+    expect(screen.queryByText('Disconnected')).not.toBeInTheDocument();
+  });
+
+  it('should render connecting status indicator', () => {
+    render(<Header isDarkMode={false} onToggleDarkMode={vi.fn()} connectionState="connecting" />);
+    expect(screen.getByText('Connecting')).toBeInTheDocument();
+  });
+
+  it('should render disconnected status indicator', () => {
+    render(<Header isDarkMode={false} onToggleDarkMode={vi.fn()} connectionState="disconnected" />);
+    expect(screen.getByText('Disconnected')).toBeInTheDocument();
   });
 
   it('should render user email', () => {

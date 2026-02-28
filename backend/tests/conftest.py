@@ -89,11 +89,13 @@ def client(test_db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.state.skip_init_db = True
 
     with TestClient(app) as test_client:
         yield test_client
 
     app.dependency_overrides.clear()
+    app.state.skip_init_db = False
 
 
 @pytest.fixture

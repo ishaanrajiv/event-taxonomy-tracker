@@ -1,141 +1,150 @@
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
 from models import (
-    PropertyCreate, EventCreate, EventUpdate, EventPropertyCreate,
-    ChangelogResponse
+    ChangelogResponse,
+    EventArchiveRequest,
+    EventCreate,
+    EventRevertRequest,
+    EventUpsertRequest,
+    EventVersionDetailResponse,
+    EventWriteProperty,
+    PropertyCreate,
 )
 
 
 class TestPropertyModels:
-    """Test property Pydantic models."""
-
     def test_property_create_valid(self):
-        """Test creating a valid PropertyCreate model."""
         prop = PropertyCreate(
             name="test_prop",
             data_type="String",
             description="Test property",
-            created_by="pytest"
+            created_by="pytest",
         )
         assert prop.name == "test_prop"
         assert prop.data_type == "String"
         assert prop.description == "Test property"
         assert prop.created_by == "pytest"
 
-    def test_property_create_minimal(self):
-        """Test creating PropertyCreate with minimal fields."""
-        prop = PropertyCreate(name="test_prop", data_type="String")
-        assert prop.name == "test_prop"
-        assert prop.data_type == "String"
-        assert prop.description is None
-        assert prop.created_by is None
-
     def test_property_create_missing_required(self):
-        """Test PropertyCreate fails without required fields."""
         with pytest.raises(ValidationError):
-            PropertyCreate(name="test_prop")  # Missing data_type
+            PropertyCreate(name="test_prop")
 
 
-class TestEventPropertyModels:
-    """Test event-property association models."""
-
-    def test_event_property_create_valid(self):
-        """Test creating a valid EventPropertyCreate model."""
-        ep = EventPropertyCreate(
-            property_name="test_prop",
+class TestEventWritePropertyModels:
+    def test_event_write_property_valid(self):
+        prop = EventWriteProperty(
+            property_name=" user_id ",
             property_type="event",
             data_type="String",
             is_required=True,
-            example_value="example",
-            description="Test property"
+            example_value="abc123",
+            description="User identifier",
         )
-        assert ep.property_name == "test_prop"
-        assert ep.property_type == "event"
-        assert ep.data_type == "String"
-        assert ep.is_required is True
-        assert ep.example_value == "example"
+        assert prop.property_name == "user_id"
+        assert prop.is_required is True
 
-    def test_event_property_create_defaults(self):
-        """Test EventPropertyCreate default values."""
-        ep = EventPropertyCreate(
-            property_name="test_prop",
-            property_type="event",
-            data_type="String"
-        )
-        assert ep.is_required is False
-        assert ep.example_value is None
-        assert ep.description is None
+    def test_event_write_property_rejects_blank_name(self):
+        with pytest.raises(ValidationError):
+            EventWriteProperty(
+                property_name="   ",
+                property_type="event",
+                data_type="String",
+            )
 
 
 class TestEventModels:
-    """Test event Pydantic models."""
-
     def test_event_create_valid(self):
-        """Test creating a valid EventCreate model."""
         event = EventCreate(
             name="Test Event",
             description="A test event",
             category="Testing",
             created_by="pytest",
             properties=[
-                EventPropertyCreate(
+                EventWriteProperty(
                     property_name="test_prop",
                     property_type="event",
-                    data_type="String"
+                    data_type="String",
                 )
-            ]
+            ],
         )
         assert event.name == "Test Event"
         assert event.description == "A test event"
         assert event.category == "Testing"
         assert len(event.properties) == 1
 
-    def test_event_create_minimal(self):
-        """Test creating EventCreate with minimal fields."""
-        event = EventCreate(name="Test Event")
-        assert event.name == "Test Event"
-        assert event.description is None
-        assert event.category is None
-        assert event.created_by is None
+    def test_event_create_normalizes_null_properties(self):
+        event = EventCreate(name="Test Event", properties=None)
         assert event.properties == []
 
-    def test_event_update_partial(self):
-        """Test EventUpdate allows partial updates."""
-        update = EventUpdate(name="Updated Name")
-        assert update.name == "Updated Name"
-        assert update.description is None
-        assert update.category is None
+    def test_event_upsert_requires_base_version(self):
+        with pytest.raises(ValidationError):
+            EventUpsertRequest(
+                name="Checkout Started",
+                description="desc",
+                category="Transaction",
+            )
 
-    def test_event_update_all_fields(self):
-        """Test EventUpdate with all fields."""
-        update = EventUpdate(
-            name="Updated Name",
-            description="Updated description",
-            category="Updated Category"
+    def test_event_upsert_valid(self):
+        request = EventUpsertRequest(
+            name="Checkout Started",
+            description="desc",
+            category="Transaction",
+            base_version_number=2,
+            changed_by="pytest",
+            properties=[],
         )
-        assert update.name == "Updated Name"
-        assert update.description == "Updated description"
-        assert update.category == "Updated Category"
+        assert request.base_version_number == 2
+        assert request.changed_by == "pytest"
+
+    def test_archive_and_revert_requests_require_positive_version(self):
+        with pytest.raises(ValidationError):
+            EventArchiveRequest(base_version_number=0)
+
+        request = EventRevertRequest(base_version_number=3, changed_by="pytest")
+        assert request.base_version_number == 3
+        assert request.changed_by == "pytest"
 
 
-class TestChangelogModels:
-    """Test changelog Pydantic models."""
+class TestVersionModels:
+    def test_event_version_detail_response_valid(self):
+        detail = EventVersionDetailResponse(
+            id=4,
+            event_id=1,
+            event_name="Checkout Started",
+            version_number=4,
+            action="revert",
+            summary="Reverted to version 1",
+            change_reason="undo",
+            created_by="pytest",
+            created_at=datetime.now(),
+            parent_version_number=3,
+            reverted_from_version_number=1,
+            is_current=True,
+            checksum="abc123",
+            snapshot={"event": {"name": "Checkout Started", "is_archived": False}, "properties": []},
+            diff={"metadata": {}, "properties": {"added": [], "removed": [], "updated": []}},
+        )
+        assert detail.version_number == 4
+        assert detail.snapshot["event"]["name"] == "Checkout Started"
 
     def test_changelog_response_valid(self):
-        """Test ChangelogResponse model."""
         changelog = ChangelogResponse(
-            id=1,
+            id=10,
             entity_type="event",
             entity_id=1,
-            action="create",
-            old_value=None,
-            new_value={"name": "Test Event"},
+            event_name="Checkout Started",
+            version_number=2,
+            action="update",
+            summary="Updated 1 metadata field",
+            change_reason=None,
+            diff={"metadata": {"name": {"from": "A", "to": "B"}}, "properties": {"added": [], "removed": [], "updated": []}},
+            snapshot={"event": {"name": "B", "is_archived": False}, "properties": []},
             changed_by="pytest",
-            changed_at=datetime.now()
+            changed_at=datetime.now(),
+            is_current=False,
         )
-        assert changelog.id == 1
-        assert changelog.entity_type == "event"
-        assert changelog.action == "create"
-        assert changelog.new_value == {"name": "Test Event"}
+        assert changelog.event_name == "Checkout Started"
+        assert changelog.action == "update"

@@ -1,6 +1,3 @@
-// TypeScript types matching backend Pydantic models
-
-// Property types
 export interface PropertyBase {
   name: string;
   data_type: string;
@@ -15,15 +12,7 @@ export interface Property extends PropertyBase {
 
 export type PropertyCreate = PropertyBase;
 
-// Event Property types
-export interface EventPropertyBase {
-  property_id: number;
-  property_type: 'event' | 'user' | 'super';
-  is_required: boolean;
-  example_value?: string | null;
-}
-
-export interface EventPropertyCreate {
+export interface EventWriteProperty {
   property_name: string;
   property_type: 'event' | 'user' | 'super';
   data_type: string;
@@ -32,58 +21,111 @@ export interface EventPropertyCreate {
   description?: string | null;
 }
 
-export interface EventProperty extends EventPropertyBase {
+export interface EventProperty extends EventWriteProperty {
   id: number;
-  property_name: string;
-  data_type: string;
-  description?: string | null;
+  property_id?: number | null;
 }
 
-// Event types
 export interface EventBase {
   name: string;
   description?: string | null;
   category?: string | null;
-  created_by?: string | null;
 }
 
 export interface EventCreate extends EventBase {
-  properties?: EventPropertyCreate[];
+  created_by?: string | null;
+  change_reason?: string | null;
+  properties?: EventWriteProperty[];
 }
 
-export interface EventUpdate {
-  name?: string;
-  description?: string;
-  category?: string;
+export interface EventUpsertRequest extends EventBase {
+  base_version_number: number;
+  changed_by?: string | null;
+  change_reason?: string | null;
+  properties: EventWriteProperty[];
+}
+
+export interface RevertEventRequest {
+  base_version_number: number;
+  changed_by?: string | null;
+  change_reason?: string | null;
 }
 
 export interface Event extends EventBase {
   id: number;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
+  version_number: number;
+  is_archived: boolean;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  lock_version: number;
   properties: EventProperty[];
 }
 
-// Changelog types
-export interface ChangelogEntry {
+export interface EventVersionSummary {
   id: number;
-  entity_type: string;
-  entity_id: number;
-  action: string;
-  old_value?: Record<string, unknown> | null;
-  new_value?: Record<string, unknown> | null;
-  changed_by?: string | null;
-  changed_at: string;
+  event_id: number;
+  event_name: string;
+  version_number: number;
+  action: 'create' | 'update' | 'archive' | 'restore' | 'revert';
+  summary: string;
+  change_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  parent_version_number?: number | null;
+  reverted_from_version_number?: number | null;
+  is_current: boolean;
 }
 
-// Property suggestion types
+export interface EventVersionDetail extends EventVersionSummary {
+  checksum: string;
+  snapshot: {
+    event: {
+      name: string;
+      description?: string | null;
+      category?: string | null;
+      is_archived: boolean;
+    };
+    properties: EventWriteProperty[];
+  };
+  diff: {
+    metadata: Record<string, { from: unknown; to: unknown }>;
+    properties: {
+      added: EventWriteProperty[];
+      removed: EventWriteProperty[];
+      updated: Array<{
+        key: string;
+        before: EventWriteProperty;
+        after: EventWriteProperty;
+      }>;
+    };
+  };
+}
+
+export interface ChangelogEntry {
+  id: number;
+  entity_type: 'event';
+  entity_id: number;
+  event_name: string;
+  version_number: number;
+  action: 'create' | 'update' | 'archive' | 'restore' | 'revert';
+  summary: string;
+  change_reason?: string | null;
+  diff: EventVersionDetail['diff'];
+  snapshot: EventVersionDetail['snapshot'];
+  changed_by?: string | null;
+  changed_at: string;
+  is_current: boolean;
+}
+
 export interface PropertySuggestion {
   name: string;
   data_type: string;
   similarity: number;
 }
 
-// Feature categories (for UI)
 export interface FeatureCategory {
   name: string;
   description: string;
@@ -93,39 +135,36 @@ export interface FeaturesResponse {
   [category: string]: FeatureCategory;
 }
 
-// API response types
 export type EventsResponse = Event[];
 export type PropertiesResponse = Property[];
 export type ChangelogResponse = ChangelogEntry[];
 export type PropertySuggestionsResponse = PropertySuggestion[];
 
-// Error response type
 export interface APIError {
   detail: string;
 }
 
-// Bulk import types
 export interface BulkImportResponse {
-  message: string;
-  created: number;
-  updated: number;
+  imported: number;
+  total: number;
   errors?: string[];
 }
 
-// Query parameters
 export interface EventsQueryParams {
   q?: string;
   category?: string;
   created_by?: string;
   date_from?: string;
   date_to?: string;
+  sort_order?: 'asc' | 'desc';
+  include_archived?: boolean;
+  only_archived?: boolean;
 }
 
 export interface PropertySuggestionsParams {
   name: string;
 }
 
-// Filter options
 export interface FilterOptions {
   categories: string[];
   creators: string[];
@@ -135,10 +174,10 @@ export interface FilterOptions {
   };
 }
 
-// Active filters
 export interface ActiveFilters {
   category?: string;
   creator?: string;
   dateFrom?: string;
   dateTo?: string;
+  archivedState?: 'active' | 'all' | 'archived';
 }

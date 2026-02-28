@@ -1,12 +1,34 @@
 interface HeaderProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  connectionState?: 'connected' | 'connecting' | 'disconnected';
 }
 
-export default function Header({ isDarkMode, onToggleDarkMode }: HeaderProps) {
+const STATUS_STYLES = {
+  connecting: {
+    container: 'bg-amber-500/8 border-amber-500/20',
+    dot: 'bg-amber-500',
+    text: 'text-amber-600 dark:text-amber-400',
+    label: 'Connecting',
+  },
+  disconnected: {
+    container: 'bg-destructive/8 border-destructive/20',
+    dot: 'bg-destructive',
+    text: 'text-destructive',
+    label: 'Disconnected',
+  },
+} as const;
+
+export default function Header({
+  isDarkMode,
+  onToggleDarkMode,
+  connectionState = 'connected',
+}: HeaderProps) {
+  const statusConfig = connectionState === 'connected' ? null : STATUS_STYLES[connectionState];
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/80 backdrop-blur-xl">
-      <div className="container flex h-14 items-center justify-between">
+      <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 border border-primary/20">
@@ -37,10 +59,12 @@ export default function Header({ isDarkMode, onToggleDarkMode }: HeaderProps) {
         {/* Right Side */}
         <div className="flex items-center gap-2">
           {/* Status */}
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-success/8 border border-success/15">
-            <div className="w-1.5 h-1.5 rounded-full bg-success"></div>
-            <span className="text-[11px] font-medium text-success">Operational</span>
-          </div>
+          {statusConfig && (
+            <div className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${statusConfig.container}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`}></div>
+              <span className={`text-[11px] font-medium ${statusConfig.text}`}>{statusConfig.label}</span>
+            </div>
+          )}
 
           {/* Theme Toggle */}
           <button

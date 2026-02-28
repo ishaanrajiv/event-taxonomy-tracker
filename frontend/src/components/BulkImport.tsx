@@ -18,6 +18,13 @@ export default function BulkImport({ apiBase, onImportComplete }: BulkImportProp
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
 
+  const isRetryableImportError = (error: unknown): boolean => {
+    if (!axios.isAxiosError(error)) return false;
+    if (!error.response) return true;
+    const status = error.response.status;
+    return status >= 500 && status <= 599;
+  };
+
   const downloadTemplate = async (format: FileFormat) => {
     try {
       const response = await axios.get(`${apiBase}/export/template/${format}`, {
@@ -47,9 +54,18 @@ export default function BulkImport({ apiBase, onImportComplete }: BulkImportProp
     formData.append('file', file);
 
     try {
-      const response = await axios.post<ImportResult>(`${apiBase}/import/${format}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const importRequest = () => axios.post<ImportResult>(`${apiBase}/import/${format}`, formData);
+      let response;
+      try {
+        response = await importRequest();
+      } catch (error) {
+        if (!isRetryableImportError(error)) {
+          throw error;
+        }
+        // One retry helps with transient first-request failures.
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        response = await importRequest();
+      }
 
       setResult(response.data);
       if (response.data.imported > 0) {
@@ -59,10 +75,14 @@ export default function BulkImport({ apiBase, onImportComplete }: BulkImportProp
       }
     } catch (error) {
       console.error('Error importing file:', error);
+      const detail =
+        axios.isAxiosError(error)
+          ? error.response?.data?.detail || `Import request failed${error.response?.status ? ` (${error.response.status})` : ''}`
+          : 'Failed to import file';
       setResult({
         imported: 0,
         total: 0,
-        errors: [axios.isAxiosError(error) ? error.response?.data?.detail || 'Failed to import file' : 'Failed to import file']
+        errors: [detail]
       });
     } finally {
       setImporting(false);
