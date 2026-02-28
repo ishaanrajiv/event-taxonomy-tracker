@@ -1,18 +1,18 @@
 {
-  "name": "frontend",
+  "name": "@event-taxonomy/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node ./node_modules/vite/bin/vite.js",
-    "build": "node ./node_modules/vite/bin/vite.js build",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run test -- --run && npm run typecheck",
-    "preview": "node ./node_modules/vite/bin/vite.js preview",
-    "test": "node ./node_modules/vitest/vitest.mjs",
-    "test:ui": "node ./node_modules/vitest/vitest.mjs --ui",
-    "test:coverage": "node ./node_modules/vitest/vitest.mjs run --coverage"
+    "verify": "bun run lint && bun run test -- --run && bun run typecheck",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

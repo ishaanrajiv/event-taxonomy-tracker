@@ -1,0 +1,19 @@
+{
+  "name": "@event-taxonomy/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "verify": "bun run typecheck && bun run test"
+  },
+  "dependencies": {
+    "hono": "^4.10.6"
+  },
+  "devDependencies": {
+    "bun-types": "^1.2.21",
+    "typescript": "^5.9.3"
+  }
+}
