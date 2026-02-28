@@ -1,23 +1,26 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-ENV/
-env/
+# Dependencies
+node_modules/
+apps/*/node_modules/
 
-# uv
-.uv/
+# Build artifacts
+apps/frontend/dist/
+apps/frontend/.vite/
+apps/api/dist/
 
-# Database
+# Databases
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
+apps/api/data/*.db
+apps/api/data/*.db-shm
+apps/api/data/*.db-wal
+
+# Test artifacts
+.coverage
+.pytest_cache/
+coverage/
 
 # IDEs
 .vscode/
@@ -26,12 +29,6 @@ env/
 *.swo
 *~
 
-# Frontend
-node_modules/
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-
 # OS
 .DS_Store
 Thumbs.db
@@ -39,7 +36,3 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-
-# pytest
-.coverage
-.pytest_cache/

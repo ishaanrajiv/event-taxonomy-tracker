@@ -1,11 +1,21 @@
 {
   "name": "event-taxonomy-tracker",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c magenta,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && uv run uvicorn api:app --reload --port 8000",
-    "dev:frontend": "cd frontend && npm run dev",
-    "verify:frontend": "npm --prefix frontend run verify"
+    "dev": "concurrently -n api,frontend -c magenta,cyan \"bun run dev:api\" \"bun run dev:frontend\"",
+    "dev:api": "cd apps/api && bun run dev",
+    "dev:frontend": "cd apps/frontend && bun run dev",
+    "test": "bun run test:api && bun run test:frontend",
+    "test:api": "cd apps/api && bun run test",
+    "test:frontend": "cd apps/frontend && bun run test -- --run",
+    "typecheck": "bun run typecheck:api && bun run typecheck:frontend",
+    "typecheck:api": "cd apps/api && bun run typecheck",
+    "typecheck:frontend": "cd apps/frontend && bun run typecheck",
+    "verify": "bun run typecheck && bun run test",
+    "verify:frontend": "cd apps/frontend && bun run verify"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
