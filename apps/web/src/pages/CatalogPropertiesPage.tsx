@@ -10,7 +10,7 @@ export const CatalogPropertiesPage = () => {
 
   return (
     <section className="panel space-y-3">
-      <h1 className="font-display text-4xl uppercase tracking-[0.08em]">Property Registry</h1>
+      <h1 className="font-display text-4xl font-bold tracking-tight">Property Registry</h1>
       <p className="text-sm text-shell-ink/70">Global registry enforces normalized name + data type consistency.</p>
 
       {query.data?.map((property) => (

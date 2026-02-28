@@ -34,7 +34,7 @@ export const NewFeaturePage = () => {
   return (
     <section className="panel max-w-3xl space-y-4">
       <p className="eyebrow">Create Workspace</p>
-      <h1 className="font-display text-4xl uppercase tracking-[0.08em]">New Tracking Plan</h1>
+      <h1 className="font-display text-4xl font-bold tracking-tight">New Tracking Plan</h1>
       <p className="text-sm text-shell-ink/70">
         This creates a new Feature with an empty evolving Tracking Plan. You can add PRD sources, extract requirements,
         and publish full-plan releases from the workspace.
@@ -61,7 +61,7 @@ export const NewFeaturePage = () => {
         </button>
 
         {createMutation.isError ? (
-          <p className="text-sm text-red-300">{(createMutation.error as Error).message}</p>
+          <p className="text-sm text-destructive">{(createMutation.error as Error).message}</p>
         ) : null}
       </form>
     </section>

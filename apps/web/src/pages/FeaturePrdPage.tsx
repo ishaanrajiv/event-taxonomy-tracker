@@ -75,7 +75,7 @@ export const FeaturePrdPage = () => {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.35fr_0.8fr]">
       <section className="panel space-y-4">
-        <h2 className="font-display text-3xl uppercase tracking-[0.08em]">PRD Sources</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight">PRD Sources</h2>
 
         <form className="grid gap-3" onSubmit={onSubmitText}>
           <label className="grid gap-1 text-xs uppercase tracking-[0.1em] text-shell-ink/65">
@@ -132,7 +132,7 @@ export const FeaturePrdPage = () => {
       </section>
 
       <aside className="panel space-y-4">
-        <h3 className="font-display text-2xl uppercase tracking-[0.08em]">AI Actions</h3>
+        <h3 className="font-display text-2xl font-bold tracking-tight">AI Actions</h3>
         <p className="text-xs text-shell-ink/70">
           AI is explicit-trigger only. Nothing runs automatically on upload. Human review is still required before
           publish.
@@ -154,7 +154,7 @@ export const FeaturePrdPage = () => {
         </div>
 
         {!isAiEnabled ? (
-          <p className="text-xs text-amber-300">AI disabled: set `OPENAI_API_KEY` and `AI_MODEL` in API env.</p>
+          <p className="text-xs text-amber-600 dark:text-amber-400">AI disabled: set `OPENAI_API_KEY` and `AI_MODEL` in API env.</p>
         ) : null}
 
         {runQuery.data ? (
@@ -162,12 +162,12 @@ export const FeaturePrdPage = () => {
             <p className="uppercase tracking-[0.1em] text-shell-ink/60">Last AI run</p>
             <p className="mt-1">Type: {runQuery.data.runType}</p>
             <p>Status: {runQuery.data.status}</p>
-            {runQuery.data.errorMessage ? <p className="text-red-300">{runQuery.data.errorMessage}</p> : null}
+            {runQuery.data.errorMessage ? <p className="text-destructive">{runQuery.data.errorMessage}</p> : null}
           </div>
         ) : null}
 
         {parseFailureCount > 0 ? (
-          <p className="text-xs text-amber-300">
+          <p className="text-xs text-amber-600 dark:text-amber-400">
             {parseFailureCount} source(s) failed parsing. Add manual paste text before AI generation.
           </p>
         ) : null}

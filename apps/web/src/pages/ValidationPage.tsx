@@ -22,7 +22,7 @@ export const ValidationPage = () => {
   return (
     <section className="panel space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-3xl uppercase tracking-[0.08em]">Validation</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight">Validation</h2>
         <button className="action-btn" onClick={() => recompute.mutate()} disabled={recompute.isPending}>
           Recompute Validation
         </button>
@@ -43,7 +43,7 @@ export const ValidationPage = () => {
             </article>
           ))}
           {validationQuery.data.issues.length === 0 ? (
-            <p className="text-sm text-emerald-300">No validation findings right now.</p>
+            <p className="text-sm text-success">No validation findings right now.</p>
           ) : null}
         </div>
       ) : null}

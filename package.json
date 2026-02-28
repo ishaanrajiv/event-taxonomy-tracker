@@ -2,21 +2,21 @@
   "name": "event-taxonomy-tracker",
   "private": true,
   "version": "3.0.0",
+  "packageManager": "bun@1.2.0",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c magenta,cyan \"npm run dev --workspace @tracker/api\" \"npm run dev --workspace @tracker/web\"",
-    "dev:api": "npm run dev --workspace @tracker/api",
-    "dev:web": "npm run dev --workspace @tracker/web",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "dev": "bun run --filter @tracker/api --filter @tracker/web --parallel dev",
+    "dev:api": "bun run --filter @tracker/api dev",
+    "dev:web": "bun run --filter @tracker/web dev",
+    "build": "bun run --filter @tracker/contracts build && bun run --filter @tracker/api build && bun run --filter @tracker/web build",
+    "typecheck": "bun run --filter @tracker/contracts typecheck && bun run --filter @tracker/api typecheck && bun run --filter @tracker/web typecheck",
+    "test": "bun run --filter @tracker/contracts test && bun run --filter @tracker/api test && bun run --filter @tracker/web test",
+    "lint": "bun run --filter @tracker/contracts lint && bun run --filter @tracker/api lint && bun run --filter @tracker/web lint"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
     "typescript": "^5.9.3"
   }
 }

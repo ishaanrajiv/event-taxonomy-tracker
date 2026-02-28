@@ -25,7 +25,7 @@ export const FeaturesListPage = () => {
       <header className="panel flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Workflow-First Planning</p>
-          <h1 className="font-display text-5xl uppercase tracking-[0.08em]">Features</h1>
+          <h1 className="font-display text-4xl font-bold tracking-tight">Features</h1>
           <p className="mt-2 max-w-2xl text-sm text-shell-ink/70">
             Start every analytics initiative from a feature workspace, not the catalog. Track blockers, requirement
             coverage, release status, and publication readiness in one control room.
@@ -55,7 +55,7 @@ export const FeaturesListPage = () => {
         {featuresQuery.isPending ? (
           <p className="text-sm text-shell-ink/70">Loading features...</p>
         ) : featuresQuery.isError ? (
-          <p className="text-sm text-red-300">Failed to load features.</p>
+          <p className="text-sm text-destructive">Failed to load features.</p>
         ) : rows.length === 0 ? (
           <p className="text-sm text-shell-ink/70">No features found. Create one to start a tracking plan.</p>
         ) : (

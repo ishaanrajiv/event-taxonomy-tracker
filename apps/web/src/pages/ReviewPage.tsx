@@ -77,7 +77,7 @@ export const ReviewPage = () => {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
       <section className="panel space-y-4">
-        <h2 className="font-display text-3xl uppercase tracking-[0.08em]">Review & Publish</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight">Review & Publish</h2>
         <p className="text-sm text-shell-ink/70">
           Publish is whole-plan and transactional. Blockers hard-stop release. Warnings require explicit acknowledgement.
         </p>
@@ -110,9 +110,9 @@ export const ReviewPage = () => {
           <button className="action-btn w-fit" disabled={publishMutation.isPending || blockers > 0} onClick={() => publishMutation.mutate()}>
             Publish to Catalog
           </button>
-          {blockers > 0 ? <p className="text-xs text-red-300">Resolve blockers before publish.</p> : null}
-          {warnings > 0 ? <p className="text-xs text-amber-300">Warnings found. Add acknowledgement note before publish.</p> : null}
-          {publishMutation.isError ? <p className="text-xs text-red-300">{(publishMutation.error as Error).message}</p> : null}
+          {blockers > 0 ? <p className="text-xs text-destructive">Resolve blockers before publish.</p> : null}
+          {warnings > 0 ? <p className="text-xs text-amber-600 dark:text-amber-400">Warnings found. Add acknowledgement note before publish.</p> : null}
+          {publishMutation.isError ? <p className="text-xs text-destructive">{(publishMutation.error as Error).message}</p> : null}
         </div>
 
         <div className="space-y-3 border-t border-shell-stroke pt-4">

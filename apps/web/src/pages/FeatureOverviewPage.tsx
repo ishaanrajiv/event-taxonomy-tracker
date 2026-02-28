@@ -21,7 +21,7 @@ export const FeatureOverviewPage = () => {
   }
 
   if (featureQuery.isError || !featureQuery.data) {
-    return <div className="panel text-red-300">Failed to load overview.</div>
+    return <div className="panel text-destructive">Failed to load overview.</div>
   }
 
   const { feature, trackingPlan } = featureQuery.data
@@ -31,7 +31,7 @@ export const FeatureOverviewPage = () => {
     <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
       <section className="panel space-y-3">
         <p className="eyebrow">Workspace Snapshot</p>
-        <h2 className="font-display text-3xl uppercase tracking-[0.08em]">{feature.title}</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight">{feature.title}</h2>
         <p className="text-sm text-shell-ink/75">{feature.summary ?? 'Add a summary to align product and engineering review.'}</p>
         <dl className="grid grid-cols-2 gap-3 text-sm">
           <div>
@@ -59,7 +59,7 @@ export const FeatureOverviewPage = () => {
           <p className="text-xs uppercase tracking-[0.12em] text-shell-ink/55">Last Published</p>
           {latestRelease ? (
             <>
-              <p className="mt-1 font-display text-4xl uppercase tracking-[0.08em]">R{latestRelease.releaseNumber}</p>
+              <p className="mt-1 font-display text-4xl font-bold tracking-tight">R{latestRelease.releaseNumber}</p>
               <p className="mt-2 text-sm text-shell-ink/70">{latestRelease.summary ?? 'No summary provided.'}</p>
               <p className="mt-2 text-xs text-shell-ink/55">{new Date(latestRelease.publishedAt).toLocaleString()}</p>
             </>

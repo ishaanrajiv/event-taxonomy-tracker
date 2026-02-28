@@ -1,1 +1,2 @@
-Always run --verbose with npm commands.
+Use bun, instead of npm.
+Always use --verbose command, when applicable.

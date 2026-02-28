@@ -52,7 +52,7 @@ export const FeatureWorkspaceLayout = () => {
   if (featureQuery.isError || !featureQuery.data) {
     return (
       <div className="panel">
-        <p className="text-sm text-red-300">Failed to load this feature workspace.</p>
+        <p className="text-sm text-destructive">Failed to load this feature workspace.</p>
         <Link to="/features" className="link-inline">
           Back to Features
         </Link>
@@ -67,10 +67,10 @@ export const FeatureWorkspaceLayout = () => {
       <header className="panel flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Feature Workspace</p>
-          <h1 className="font-display text-4xl uppercase tracking-[0.08em]">{feature.title}</h1>
-          <p className="mt-2 text-sm text-shell-ink/70">{feature.summary ?? 'No summary yet.'}</p>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">{feature.title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{feature.summary ?? 'No summary yet.'}</p>
         </div>
-        <div className="rounded-2xl border border-shell-stroke bg-shell-soft px-4 py-3 text-xs uppercase tracking-[0.12em] text-shell-ink/80">
+        <div className="rounded-lg border border-border bg-muted px-4 py-2 text-xs font-semibold text-muted-foreground">
           Status: {feature.workflowStatus}
         </div>
       </header>
@@ -81,10 +81,10 @@ export const FeatureWorkspaceLayout = () => {
             key={tab.key}
             to={`/features/${featureId}/${tab.key}`}
             className={({ isActive }) =>
-              `rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] ${
+              `rounded-md border px-4 py-2 text-xs font-semibold ${
                 isActive
-                  ? 'border-shell-ink bg-shell-ink text-shell'
-                  : 'border-shell-stroke bg-shell-soft text-shell-ink/80 hover:border-shell-ink/40 hover:text-shell-ink'
+                  ? 'bg-muted text-foreground shadow-soft'
+                  : 'border-input bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
               }`
             }
           >

@@ -4,7 +4,7 @@ This repository now uses a local-first TypeScript monorepo for a workflow-first 
 
 ## What Changed
 
-- New architecture with npm workspaces:
+- New architecture with Bun workspaces:
   - `apps/web`: React 19 + Vite + TypeScript SPA
   - `apps/api`: Fastify + Drizzle + SQLite API server
   - `packages/contracts`: shared Zod schemas + inferred types
@@ -24,13 +24,13 @@ This repository now uses a local-first TypeScript monorepo for a workflow-first 
 1. Install workspace dependencies:
 
 ```bash
-npm install --verbose
+bun install --verbose
 ```
 
 2. Start API + web app:
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 3. Open:
@@ -69,13 +69,13 @@ Implemented surfaces include:
 Run all workspace tests:
 
 ```bash
-npm run test
+bun run test
 ```
 
 Run type checks:
 
 ```bash
-npm run typecheck
+bun run typecheck
 ```
 
 ## Notes

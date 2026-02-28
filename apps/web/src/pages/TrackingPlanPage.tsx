@@ -58,7 +58,7 @@ export const TrackingPlanPage = () => {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
       <section className="panel space-y-4">
-        <h2 className="font-display text-3xl uppercase tracking-[0.08em]">Tracking Plan Editor</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight">Tracking Plan Editor</h2>
 
         <form className="grid gap-3 rounded-xl border border-shell-stroke bg-shell-soft p-3" onSubmit={onSubmit}>
           <p className="text-xs uppercase tracking-[0.1em] text-shell-ink/60">Add Manual Plan Event</p>

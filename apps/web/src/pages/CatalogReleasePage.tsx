@@ -17,7 +17,7 @@ export const CatalogReleasePage = () => {
   }
 
   if (query.isError || !query.data) {
-    return <div className="panel text-red-300">Release not found.</div>
+    return <div className="panel text-destructive">Release not found.</div>
   }
 
   const { release, versions } = query.data
@@ -26,7 +26,7 @@ export const CatalogReleasePage = () => {
     <section className="space-y-4">
       <header className="panel">
         <p className="eyebrow">Release Detail</p>
-        <h1 className="font-display text-4xl uppercase tracking-[0.08em]">Release R{release.releaseNumber}</h1>
+        <h1 className="font-display text-4xl font-bold tracking-tight">Release R{release.releaseNumber}</h1>
         <p className="mt-1 text-sm text-shell-ink/70">{release.summary ?? 'No summary.'}</p>
       </header>
 

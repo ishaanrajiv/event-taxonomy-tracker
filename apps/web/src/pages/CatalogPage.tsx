@@ -13,7 +13,7 @@ export const CatalogPage = () => {
     <section className="space-y-4">
       <header className="panel">
         <p className="eyebrow">Published Source of Truth</p>
-        <h1 className="font-display text-4xl uppercase tracking-[0.08em]">Catalog Events</h1>
+        <h1 className="font-display text-4xl font-bold tracking-tight">Catalog Events</h1>
       </header>
 
       <div className="panel overflow-auto">

@@ -26,29 +26,29 @@ export const ValidationRail = ({ featureId, title = 'Validation' }: ValidationRa
   }
 
   if (validationQuery.isError || !validationQuery.data) {
-    return <aside className="panel text-sm text-red-300">Validation unavailable.</aside>
+    return <aside className="panel text-sm text-destructive">Validation unavailable.</aside>
   }
 
   const grouped = group(validationQuery.data.issues)
 
   return (
     <aside className="panel space-y-3">
-      <h3 className="font-display text-2xl uppercase tracking-[0.08em]">{title}</h3>
+      <h3 className="font-display text-2xl font-bold tracking-tight">{title}</h3>
       <div className="grid gap-2 text-xs uppercase tracking-[0.1em]">
-        <div className="flex items-center justify-between rounded-lg border border-red-300/40 bg-red-950/30 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
           <span>Blockers</span>
           <strong>{grouped.blockers.length}</strong>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-amber-300/40 bg-amber-950/20 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
           <span>Warnings</span>
           <strong>{grouped.warnings.length}</strong>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-cyan-300/40 bg-cyan-950/20 px-3 py-2">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-3 py-2">
           <span>Info</span>
           <strong>{grouped.info.length}</strong>
         </div>
       </div>
-      <p className="text-xs text-shell-ink/65">
+      <p className="text-xs text-muted-foreground">
         Publish is blocked until blockers are cleared. Warnings require explicit acknowledgement in Review.
       </p>
     </aside>

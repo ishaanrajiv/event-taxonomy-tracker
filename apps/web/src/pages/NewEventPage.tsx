@@ -69,7 +69,7 @@ export const NewEventPage = () => {
   return (
     <section className="panel max-w-3xl space-y-4">
       <p className="eyebrow">Standalone Event Flow</p>
-      <h1 className="font-display text-4xl uppercase tracking-[0.08em]">New Event</h1>
+      <h1 className="font-display text-4xl font-bold tracking-tight">New Event</h1>
 
       <div className="flex flex-wrap gap-2">
         <button className={`chip ${mode === 'publish' ? 'active' : ''}`} type="button" onClick={() => setMode('publish')}>
