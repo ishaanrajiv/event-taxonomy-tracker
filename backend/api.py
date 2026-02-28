@@ -1,186 +1,162 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Query
+import csv
+import io
+import json
+from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import List, Literal, Optional
+
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
-from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
-from typing import List, Optional
-from datetime import datetime
-from contextlib import asynccontextmanager
-import json
-import csv
-import io
+from sqlalchemy.orm import Session, selectinload
 
-from database import get_db, init_db, Event, Property, EventProperty, Changelog
+from database import Event, EventVersion, Property, get_db, init_db
 from models import (
-    EventCreate, EventResponse, EventUpdate,
-    PropertyCreate, PropertyResponse,
-    EventPropertyCreate,
-    ChangelogResponse
+    ChangelogResponse,
+    EventArchiveRequest,
+    EventCreate,
+    EventResponse,
+    EventRevertRequest,
+    EventUpsertRequest,
+    EventVersionDetailResponse,
+    EventVersionSummaryResponse,
+    PropertyCreate,
+    PropertyResponse,
 )
 from utils import find_similar_properties
+from versioning import (
+    DuplicatePropertyError,
+    InvalidEventStateError,
+    RegistryConflictError,
+    VersionConflictError,
+    build_version_number_lookup,
+    create_event_versioned,
+    get_version_by_number,
+    revert_event_versioned,
+    serialize_changelog_entry,
+    serialize_event,
+    serialize_version_detail,
+    serialize_version_summary,
+    update_event_versioned,
+    archive_event_versioned,
+    restore_event_versioned,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    init_db()
+    if not getattr(app.state, "skip_init_db", False):
+        init_db()
     yield
-    # Shutdown (if needed)
 
 
 app = FastAPI(title="Event Taxonomy Tracker", lifespan=lifespan)
 
-# CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 
 
-def log_change(db: Session, entity_type: str, entity_id: int, action: str,
-               old_value: dict = None, new_value: dict = None, changed_by: str = None):
-    """Helper function to log changes to changelog.
-    
-    Note: This does NOT commit - the caller is responsible for transaction management.
-    """
-    changelog = Changelog(
-        entity_type=entity_type,
-        entity_id=entity_id,
-        action=action,
-        old_value=old_value,
-        new_value=new_value,
-        changed_by=changed_by
-    )
-    db.add(changelog)
+def _raise_domain_error(error: Exception) -> None:
+    if isinstance(error, (DuplicatePropertyError, RegistryConflictError)):
+        raise HTTPException(status_code=400, detail=str(error))
+    if isinstance(error, VersionConflictError):
+        raise HTTPException(status_code=409, detail=str(error))
+    if isinstance(error, InvalidEventStateError):
+        raise HTTPException(status_code=409, detail=str(error))
+    raise error
 
 
-def _validate_unique_event_properties(properties: List[EventPropertyCreate]) -> None:
-    """Validate that each (property_name, property_type) pair appears at most once."""
-    seen: set[tuple[str, str]] = set()
-    duplicates: set[tuple[str, str]] = set()
+def _load_event(
+    db: Session,
+    event_id: int,
+    *,
+    include_versions: bool = False,
+) -> Event:
+    query = db.query(Event).options(selectinload(Event.event_properties))
+    if include_versions:
+        query = query.options(selectinload(Event.versions))
 
-    for prop in properties:
-        key = (prop.property_name, prop.property_type)
-        if key in seen:
-            duplicates.add(key)
-        seen.add(key)
+    event = query.filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
 
-    if duplicates:
-        duplicate_list = ", ".join([f"{name} ({ptype})" for name, ptype in sorted(duplicates)])
+
+def _parse_iso_datetime(value: str, field_name: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
         raise HTTPException(
             status_code=400,
-            detail=f"Duplicate properties in payload: {duplicate_list}"
-        )
+            detail=f"Invalid {field_name} format: {value}. Use ISO format.",
+        ) from exc
 
 
-def _create_event_atomic(
-    db: Session,
-    event: EventCreate,
-    created_by_fallback: Optional[str] = None,
-    log_creation: bool = True
-) -> Event:
-    """Create an event and all related rows atomically within the current transaction."""
-    created_by = event.created_by or created_by_fallback
-    properties = event.properties or []
+def _score_event(event: dict, search_term: str) -> int:
+    score = 0
+    if search_term in event["name"].lower():
+        score += 100
+        if event["name"].lower() == search_term:
+            score += 50
 
-    _validate_unique_event_properties(properties)
+    if event["category"] and search_term in event["category"].lower():
+        score += 75
+        if event["category"].lower() == search_term:
+            score += 25
 
-    db_event = Event(
-        name=event.name,
-        description=event.description,
-        category=event.category,
-        created_by=created_by
-    )
-    db.add(db_event)
-    db.flush()
+    if event["description"] and search_term in event["description"].lower():
+        score += 50
 
-    properties_data = []
-    for prop_create in properties:
-        property_obj = db.query(Property).filter(Property.name == prop_create.property_name).first()
+    for prop in event["properties"]:
+        if search_term in prop["property_name"].lower():
+            score += 30
+            if prop["property_name"].lower() == search_term:
+                score += 10
+        if prop["description"] and search_term in prop["description"].lower():
+            score += 20
+        if search_term in prop["data_type"].lower():
+            score += 10
 
-        if property_obj:
-            if property_obj.data_type != prop_create.data_type:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Property '{prop_create.property_name}' already exists with data type "
-                        f"'{property_obj.data_type}'. Cannot redefine as '{prop_create.data_type}'."
-                    )
-                )
-        else:
-            property_obj = Property(
-                name=prop_create.property_name,
-                data_type=prop_create.data_type,
-                description=prop_create.description,
-                created_by=created_by
-            )
-            db.add(property_obj)
-            db.flush()
+    if event["created_by"] and search_term in event["created_by"].lower():
+        score += 15
 
-        db.add(EventProperty(
-            event_id=db_event.id,
-            property_id=property_obj.id,
-            property_type=prop_create.property_type,
-            is_required=prop_create.is_required,
-            example_value=prop_create.example_value
-        ))
+    return score
 
-        properties_data.append({
-            "name": prop_create.property_name,
-            "type": prop_create.property_type,
-            "data_type": prop_create.data_type,
-            "required": prop_create.is_required,
-            "example": prop_create.example_value
-        })
-
-    if log_creation:
-        log_change(
-            db,
-            "event",
-            db_event.id,
-            "create",
-            new_value={
-                "name": db_event.name,
-                "description": db_event.description,
-                "category": db_event.category,
-                "properties": properties_data
-            },
-            changed_by=created_by
-        )
-
-    return db_event
-
-
-# ========== EVENT ENDPOINTS ==========
 
 @app.get("/api/events", response_model=List[EventResponse])
 def list_events(
+    response: Response,
     q: Optional[str] = None,
     category: Optional[str] = None,
     created_by: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    include_archived: bool = False,
+    only_archived: bool = False,
+    sort_order: Literal["asc", "desc"] = Query(
+        default="asc",
+        description="Sort by created_at (asc or desc)",
+    ),
     skip: int = Query(default=0, ge=0, description="Number of events to skip"),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum number of events to return"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """List all events with optional search, filters, and pagination.
+    base_query = db.query(Event).options(selectinload(Event.event_properties))
 
-    Search includes: event name, category, description, property names with relevance ranking.
-    Filters: category, created_by, date range.
-    Pagination: skip and limit parameters.
-    """
-    # Start with base query with eager loading to avoid N+1 queries
-    base_query = db.query(Event).options(
-        selectinload(Event.event_properties).joinedload(EventProperty.property)
-    )
+    if only_archived:
+        base_query = base_query.filter(Event.is_archived.is_(True))
+    elif not include_archived:
+        base_query = base_query.filter(Event.is_archived.is_(False))
 
-    # Apply filters first (non-search)
     if category:
         base_query = base_query.filter(Event.category == category)
 
@@ -188,536 +164,244 @@ def list_events(
         base_query = base_query.filter(Event.created_by.ilike(f"%{created_by}%"))
 
     if date_from:
-        try:
-            date_from_dt = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
-            base_query = base_query.filter(Event.created_at >= date_from_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid date_from format: {date_from}. Use ISO format.")
+        base_query = base_query.filter(Event.created_at >= _parse_iso_datetime(date_from, "date_from"))
 
     if date_to:
-        try:
-            date_to_dt = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
-            base_query = base_query.filter(Event.created_at <= date_to_dt)
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid date_to format: {date_to}. Use ISO format.")
+        base_query = base_query.filter(Event.created_at <= _parse_iso_datetime(date_to, "date_to"))
 
-    # Search requires evaluating relevance across the full filtered set before pagination.
-    # When no search query is present, paginate directly in SQL.
-    if q:
-        events = base_query.all()
-    else:
-        events = base_query.offset(skip).limit(limit).all()
+    total_count = base_query.count()
+    base_query = (
+        base_query.order_by(Event.created_at.desc())
+        if sort_order == "desc"
+        else base_query.order_by(Event.created_at.asc())
+    )
 
-    # Format response with properties and calculate search relevance
-    result = []
-    for event in events:
-        event_dict = {
-            "id": event.id,
-            "name": event.name,
-            "description": event.description,
-            "category": event.category,
-            "created_by": event.created_by,
-            "created_at": event.created_at,
-            "updated_at": event.updated_at,
-            "properties": []
-        }
+    events = base_query.all() if q else base_query.offset(skip).limit(limit).all()
+    serialized = [serialize_event(event) for event in events]
 
-        for ep in event.event_properties:
-            event_dict["properties"].append({
-                "id": ep.id,
-                "property_id": ep.property_id,
-                "property_name": ep.property.name,
-                "property_type": ep.property_type,
-                "data_type": ep.property.data_type,
-                "description": ep.property.description,
-                "is_required": ep.is_required,
-                "example_value": ep.example_value
-            })
-
-        result.append(event_dict)
-
-    # Apply search with relevance ranking if query provided
     if q:
         search_term = q.lower()
-        scored_results = []
-
-        for event_dict in result:
-            score = 0
-
-            # Event name (highest priority - score: 100)
-            if search_term in event_dict["name"].lower():
-                score += 100
-                # Boost for exact match
-                if event_dict["name"].lower() == search_term:
-                    score += 50
-
-            # Category/Feature (score: 75)
-            if event_dict["category"] and search_term in event_dict["category"].lower():
-                score += 75
-                if event_dict["category"].lower() == search_term:
-                    score += 25
-
-            # Event description (score: 50)
-            if event_dict["description"] and search_term in event_dict["description"].lower():
-                score += 50
-
-            # Property names (score: 30 per match)
-            for prop in event_dict["properties"]:
-                if search_term in prop["property_name"].lower():
-                    score += 30
-                    if prop["property_name"].lower() == search_term:
-                        score += 10
-
-            # Property descriptions (score: 20 per match)
-            for prop in event_dict["properties"]:
-                if prop["description"] and search_term in prop["description"].lower():
-                    score += 20
-
-            # Property data types (score: 10)
-            for prop in event_dict["properties"]:
-                if search_term in prop["data_type"].lower():
-                    score += 10
-
-            # Creator (score: 15)
-            if event_dict["created_by"] and search_term in event_dict["created_by"].lower():
-                score += 15
-
-            # Only include events with matches
+        scored = []
+        for event in serialized:
+            score = _score_event(event, search_term)
             if score > 0:
-                scored_results.append((score, event_dict))
+                scored.append((score, event))
 
-        # Sort by score (descending), then by name
-        scored_results.sort(key=lambda x: (-x[0], x[1]["name"].lower()))
-        ranked_results = [event_dict for score, event_dict in scored_results]
-        result = ranked_results[skip: skip + limit]
+        scored.sort(key=lambda item: item[1]["created_at"], reverse=(sort_order == "desc"))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        ranked = [event for _, event in scored]
+        total_count = len(ranked)
+        serialized = ranked[skip: skip + limit]
 
-    return result
+    response.headers["X-Total-Count"] = str(total_count)
+    return serialized
 
 
 @app.post("/api/events", response_model=EventResponse)
 def create_event(event: EventCreate, db: Session = Depends(get_db)):
-    """Create a new event with properties."""
     try:
-        db_event = _create_event_atomic(db, event)
+        created_event = create_event_versioned(db, event)
         db.commit()
-        db.refresh(db_event)
-    except HTTPException:
+        return serialize_event(_load_event(db, created_event.id))
+    except (DuplicatePropertyError, RegistryConflictError, InvalidEventStateError) as error:
         db.rollback()
-        raise
-    except IntegrityError:
+        _raise_domain_error(error)
+    except IntegrityError as error:
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail="Event creation failed due to a conflicting database constraint"
-        )
-
-    return get_event(db_event.id, db)
+            detail="Event creation failed due to a conflicting database constraint",
+        ) from error
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
 def get_event(event_id: int, db: Session = Depends(get_db)):
-    """Get a single event with its properties."""
-    db_event = db.query(Event).options(
-        selectinload(Event.event_properties).joinedload(EventProperty.property)
-    ).filter(Event.id == event_id).first()
-
-    if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    # Format response with properties
-    event_dict = {
-        "id": db_event.id,
-        "name": db_event.name,
-        "description": db_event.description,
-        "category": db_event.category,
-        "created_by": db_event.created_by,
-        "created_at": db_event.created_at,
-        "updated_at": db_event.updated_at,
-        "properties": []
-    }
-
-    for ep in db_event.event_properties:
-        event_dict["properties"].append({
-            "id": ep.id,
-            "property_id": ep.property_id,
-            "property_name": ep.property.name,
-            "property_type": ep.property_type,
-            "data_type": ep.property.data_type,
-            "description": ep.property.description,
-            "is_required": ep.is_required,
-            "example_value": ep.example_value
-        })
-
-    return event_dict
+    return serialize_event(_load_event(db, event_id))
 
 
 @app.put("/api/events/{event_id}", response_model=EventResponse)
-def update_event(
-    event_id: int,
-    event_update: EventUpdate,
-    changed_by: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Update an event."""
-    db_event = db.query(Event).filter(Event.id == event_id).first()
+def update_event(event_id: int, payload: EventUpsertRequest, db: Session = Depends(get_db)):
+    event = _load_event(db, event_id)
 
-    if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    # Store old values
-    old_value = {
-        "name": db_event.name,
-        "description": db_event.description,
-        "category": db_event.category
-    }
-
-    # Update fields and track if anything actually changed
-    has_changes = False
-
-    if event_update.name is not None:
-        if event_update.name != db_event.name:
-            db_event.name = event_update.name
-            has_changes = True
-
-    if event_update.description is not None:
-        # Treat empty string and None as equivalent
-        old_desc = db_event.description if db_event.description else ""
-        new_desc = event_update.description if event_update.description else ""
-        if new_desc != old_desc:
-            db_event.description = event_update.description
-            has_changes = True
-
-    if event_update.category is not None:
-        # Treat empty string and None as equivalent
-        old_cat = db_event.category if db_event.category else ""
-        new_cat = event_update.category if event_update.category else ""
-        if new_cat != old_cat:
-            db_event.category = event_update.category
-            has_changes = True
-
-    db.commit()
-    db.refresh(db_event)
-
-    # Only log if there were actual changes to event metadata
-    if has_changes:
-        new_value = {
-            "name": db_event.name,
-            "description": db_event.description,
-            "category": db_event.category
-        }
-        log_change(db, "event", event_id, "update", old_value=old_value, new_value=new_value, changed_by=changed_by)
-        db.commit()  # Commit the changelog entry
-
-    return get_event(event_id, db)
-
-
-@app.delete("/api/events/{event_id}")
-def delete_event(event_id: int, changed_by: Optional[str] = None, db: Session = Depends(get_db)):
-    """Delete an event and clean up orphaned properties."""
-    db_event = db.query(Event).filter(Event.id == event_id).first()
-
-    if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    # Collect event data with properties for changelog
-    properties_data = []
-    for ep in db_event.event_properties:
-        properties_data.append({
-            "name": ep.property.name,
-            "type": ep.property_type,
-            "data_type": ep.property.data_type,
-            "required": ep.is_required,
-            "example": ep.example_value
-        })
-
-    old_value = {
-        "name": db_event.name,
-        "description": db_event.description,
-        "category": db_event.category,
-        "properties": properties_data
-    }
-
-    # Get property IDs associated with this event before deletion
-    property_ids = [ep.property_id for ep in db_event.event_properties]
-
-    # Delete the event (cascade will delete event_properties)
-    db.delete(db_event)
-    db.commit()
-
-    # Clean up orphaned properties (properties not linked to any event)
-    # Note: We don't log these separately - they're part of the event deletion
-    orphaned_count = 0
-    for prop_id in property_ids:
-        # Check if this property is still linked to any event
-        is_linked = db.query(EventProperty).filter(EventProperty.property_id == prop_id).first()
-        if not is_linked:
-            # Property is orphaned, delete it
-            orphaned_prop = db.query(Property).filter(Property.id == prop_id).first()
-            if orphaned_prop:
-                db.delete(orphaned_prop)
-                orphaned_count += 1
-
-    db.commit()
-
-    log_change(db, "event", event_id, "delete", old_value=old_value, changed_by=changed_by)
-    db.commit()  # Commit the changelog entry
-
-    return {
-        "message": "Event deleted successfully",
-        "orphaned_properties_cleaned": orphaned_count
-    }
-
-
-# ========== EVENT PROPERTY ENDPOINTS ==========
-
-@app.post("/api/events/{event_id}/properties")
-def add_property_to_event(
-    event_id: int,
-    prop: EventPropertyCreate,
-    changed_by: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Add a property to an event."""
-    db_event = db.query(Event).filter(Event.id == event_id).first()
-    if not db_event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    # Check if property exists
-    property_obj = db.query(Property).filter(Property.name == prop.property_name).first()
-
-    if property_obj:
-        # Verify data type matches
-        if property_obj.data_type != prop.data_type:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Property '{prop.property_name}' already exists with data type '{property_obj.data_type}'. Cannot redefine as '{prop.data_type}'."
-            )
-    else:
-        # Create new property (no separate logging - logged as part of event change)
-        property_obj = Property(
-            name=prop.property_name,
-            data_type=prop.data_type,
-            description=prop.description
-        )
-        db.add(property_obj)
-        db.flush()
-
-    # Check if association already exists
-    existing = db.query(EventProperty).filter(
-        EventProperty.event_id == event_id,
-        EventProperty.property_id == property_obj.id,
-        EventProperty.property_type == prop.property_type
-    ).first()
-
-    if existing:
-        raise HTTPException(status_code=400, detail="Property already added to this event")
-
-    # Create association
-    event_property = EventProperty(
-        event_id=event_id,
-        property_id=property_obj.id,
-        property_type=prop.property_type,
-        is_required=prop.is_required,
-        example_value=prop.example_value
-    )
-    db.add(event_property)
     try:
+        update_event_versioned(db, event, payload)
         db.commit()
-    except IntegrityError:
+        return serialize_event(_load_event(db, event_id))
+    except (DuplicatePropertyError, RegistryConflictError, VersionConflictError, InvalidEventStateError) as error:
+        db.rollback()
+        _raise_domain_error(error)
+    except IntegrityError as error:
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail="Property association conflicts with an existing database constraint"
-        )
-
-    # Log as event update - property added (include event name for display)
-    log_change(
-        db, "event", event_id, "update",
-        new_value={
-            "action": "property_added",
-            "name": db_event.name,
-            "property": {
-                "name": prop.property_name,
-                "type": prop.property_type,
-                "data_type": prop.data_type,
-                "required": prop.is_required,
-                "example": prop.example_value
-            }
-        },
-        changed_by=changed_by
-    )
-    db.commit()  # Commit the changelog entry
-
-    return {"message": "Property added successfully", "property_id": property_obj.id}
+            detail="Event update failed due to a conflicting database constraint",
+        ) from error
 
 
-@app.delete("/api/events/{event_id}/properties/{event_property_id}")
-def remove_property_from_event(
-    event_id: int,
-    event_property_id: int,
-    changed_by: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Remove a property from an event."""
-    event_property = db.query(EventProperty).filter(
-        EventProperty.id == event_property_id,
-        EventProperty.event_id == event_id
-    ).first()
-
-    if not event_property:
-        raise HTTPException(status_code=404, detail="Event property association not found")
-
-    # Capture property and event info for changelog
-    event_name = event_property.event.name
-    property_id = event_property.property_id
-    property_info = {
-        "name": event_property.property.name,
-        "type": event_property.property_type,
-        "data_type": event_property.property.data_type,
-        "required": event_property.is_required,
-        "example": event_property.example_value
-    }
-
-    orphaned_property_cleaned = False
-    db.delete(event_property)
-
-    # Keep property registry clean by removing orphaned properties.
-    linked_elsewhere = db.query(EventProperty).filter(
-        EventProperty.property_id == property_id,
-        EventProperty.id != event_property_id
-    ).first()
-    if not linked_elsewhere:
-        orphaned_prop = db.query(Property).filter(Property.id == property_id).first()
-        if orphaned_prop:
-            db.delete(orphaned_prop)
-            orphaned_property_cleaned = True
+@app.post("/api/events/{event_id}/archive", response_model=EventResponse)
+def archive_event(event_id: int, payload: EventArchiveRequest, db: Session = Depends(get_db)):
+    event = _load_event(db, event_id)
 
     try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="Property removal failed due to a conflicting database constraint"
+        archive_event_versioned(
+            db,
+            event,
+            base_version_number=payload.base_version_number,
+            changed_by=payload.changed_by,
+            change_reason=payload.change_reason,
         )
+        db.commit()
+        return serialize_event(_load_event(db, event_id))
+    except (VersionConflictError, InvalidEventStateError, RegistryConflictError) as error:
+        db.rollback()
+        _raise_domain_error(error)
 
-    # Log as event update - property removed (include event name for display)
-    changelog_old_value = {
-        "action": "property_removed",
-        "name": event_name,
-        "property": property_info
-    }
-    if orphaned_property_cleaned:
-        changelog_old_value["orphaned_property_deleted"] = True
 
-    log_change(
-        db, "event", event_id, "update",
-        old_value=changelog_old_value,
-        changed_by=changed_by
+@app.post("/api/events/{event_id}/restore", response_model=EventResponse)
+def restore_event(event_id: int, payload: EventArchiveRequest, db: Session = Depends(get_db)):
+    event = _load_event(db, event_id)
+
+    try:
+        restore_event_versioned(
+            db,
+            event,
+            base_version_number=payload.base_version_number,
+            changed_by=payload.changed_by,
+            change_reason=payload.change_reason,
+        )
+        db.commit()
+        return serialize_event(_load_event(db, event_id))
+    except (VersionConflictError, InvalidEventStateError, RegistryConflictError) as error:
+        db.rollback()
+        _raise_domain_error(error)
+
+
+@app.get("/api/events/{event_id}/versions", response_model=List[EventVersionSummaryResponse])
+def list_event_versions(event_id: int, db: Session = Depends(get_db)):
+    event = _load_event(db, event_id, include_versions=True)
+    lookup = build_version_number_lookup(event.versions)
+
+    versions = sorted(event.versions, key=lambda version: version.version_number, reverse=True)
+    return [serialize_version_summary(event, version, lookup) for version in versions]
+
+
+@app.get("/api/events/{event_id}/versions/{version_number}", response_model=EventVersionDetailResponse)
+def get_event_version(event_id: int, version_number: int, db: Session = Depends(get_db)):
+    event = _load_event(db, event_id, include_versions=True)
+    target_version = next(
+        (version for version in event.versions if version.version_number == version_number),
+        None,
     )
-    db.commit()  # Commit the changelog entry
+    if not target_version:
+        raise HTTPException(status_code=404, detail="Event version not found")
 
-    return {
-        "message": "Property removed successfully",
-        "orphaned_property_cleaned": orphaned_property_cleaned
-    }
+    lookup = build_version_number_lookup(event.versions)
+    return serialize_version_detail(event, target_version, lookup)
 
 
-# ========== PROPERTY REGISTRY ENDPOINTS ==========
+@app.post("/api/events/{event_id}/versions/{version_number}/revert", response_model=EventResponse)
+def revert_event_version(
+    event_id: int,
+    version_number: int,
+    payload: EventRevertRequest,
+    db: Session = Depends(get_db),
+):
+    event = _load_event(db, event_id)
+    target_version = get_version_by_number(db, event_id, version_number)
+    if not target_version:
+        raise HTTPException(status_code=404, detail="Event version not found")
+
+    try:
+        revert_event_versioned(
+            db,
+            event,
+            target_version=target_version,
+            base_version_number=payload.base_version_number,
+            changed_by=payload.changed_by,
+            change_reason=payload.change_reason,
+        )
+        db.commit()
+        return serialize_event(_load_event(db, event_id))
+    except (VersionConflictError, InvalidEventStateError, RegistryConflictError) as error:
+        db.rollback()
+        _raise_domain_error(error)
+
 
 @app.get("/api/properties", response_model=List[PropertyResponse])
 def list_properties(db: Session = Depends(get_db)):
-    """List all properties in the registry."""
-    return db.query(Property).all()
+    return db.query(Property).order_by(Property.name.asc()).all()
 
 
 @app.post("/api/properties", response_model=PropertyResponse)
 def create_property(prop: PropertyCreate, db: Session = Depends(get_db)):
-    """Create a new property in the registry."""
-    # Check if property already exists
     existing = db.query(Property).filter(Property.name == prop.name).first()
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Property '{prop.name}' already exists with data type '{existing.data_type}'"
+            detail=f"Property '{prop.name}' already exists with data type '{existing.data_type}'",
         )
 
     db_property = Property(**prop.model_dump())
     db.add(db_property)
     db.commit()
     db.refresh(db_property)
-
-    log_change(
-        db, "property", db_property.id, "create",
-        new_value={"name": db_property.name, "data_type": db_property.data_type},
-        changed_by=prop.created_by
-    )
-    db.commit()  # Commit the changelog entry
-
     return db_property
 
 
 @app.get("/api/properties/suggest")
 def suggest_properties(q: str, db: Session = Depends(get_db)):
-    """Get fuzzy-matched property suggestions."""
     all_properties = db.query(Property.name, Property.data_type).all()
-    existing = [(p.name, p.data_type) for p in all_properties]
-
+    existing = [(prop.name, prop.data_type) for prop in all_properties]
     suggestions = find_similar_properties(q, existing, threshold=0.6)
-
     return {"query": q, "suggestions": suggestions}
 
-
-# ========== CHANGELOG ENDPOINTS ==========
 
 @app.get("/api/changelog", response_model=List[ChangelogResponse])
 def get_changelog(
     entity_type: Optional[str] = None,
     entity_id: Optional[int] = None,
     limit: int = Query(default=50, ge=1, le=500, description="Maximum number of entries to return"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Get changelog with optional filters."""
-    query = db.query(Changelog).order_by(Changelog.changed_at.desc())
+    if entity_type and entity_type != "event":
+        return []
 
-    if entity_type:
-        query = query.filter(Changelog.entity_type == entity_type)
+    query = (
+        db.query(EventVersion, Event)
+        .join(Event, Event.id == EventVersion.event_id)
+        .order_by(EventVersion.created_at.desc())
+    )
 
     if entity_id:
-        query = query.filter(Changelog.entity_id == entity_id)
+        query = query.filter(EventVersion.event_id == entity_id)
 
-    return query.limit(limit).all()
+    rows = query.limit(limit).all()
+    return [serialize_changelog_entry(event, version) for version, event in rows]
 
-
-# ========== SEARCH ENDPOINT ==========
 
 @app.get("/api/search")
 def search(q: str, db: Session = Depends(get_db)):
-    """Global search across events and properties using FTS5 for events."""
-    # Escape FTS5 special characters to prevent injection
-    # FTS5 has special syntax: * " () - : AND OR NOT
-    # Wrap the query in double quotes for phrase matching and escape internal quotes
     escaped_query = '"' + q.replace('"', '""') + '"'
-    
-    # Use FTS5 for event search (much faster than ILIKE)
+
     try:
         fts_query = db.execute(
-            text("""
-            SELECT DISTINCT e.id, e.name
-            FROM events e
-            INNER JOIN events_fts fts ON e.id = fts.rowid
-            WHERE events_fts MATCH :query
-            ORDER BY rank
-            LIMIT 50
-            """),
-            {"query": escaped_query}
+            text(
+                """
+                SELECT DISTINCT e.id, e.name
+                FROM events e
+                INNER JOIN events_fts fts ON e.id = fts.rowid
+                WHERE events_fts MATCH :query
+                  AND e.is_archived = 0
+                ORDER BY rank
+                LIMIT 50
+                """
+            ),
+            {"query": escaped_query},
         ).fetchall()
         events = [{"id": row[0], "name": row[1], "type": "event"} for row in fts_query]
     except Exception:
-        # Fallback to empty if FTS5 query fails (e.g., malformed input)
         events = []
-    
-    # Keep ILIKE for properties (smaller dataset, FTS5 overhead not worth it)
+
     properties = db.query(Property).filter(
         (Property.name.ilike(f"%{q}%")) | (Property.description.ilike(f"%{q}%"))
     ).all()
@@ -725,79 +409,63 @@ def search(q: str, db: Session = Depends(get_db)):
     return {
         "query": q,
         "events": events,
-        "properties": [{"id": p.id, "name": p.name, "type": "property"} for p in properties]
+        "properties": [{"id": prop.id, "name": prop.name, "type": "property"} for prop in properties],
     }
 
 
 @app.get("/api/features")
 def get_features(db: Session = Depends(get_db)):
-    """Get all unique features with 3 most recently used at the top, rest alphabetically sorted."""
-    # Get all unique features (categories) from events ordered by most recent update
-    recent_events = db.query(Event.category, Event.updated_at).filter(
-        Event.category.isnot(None)
-    ).order_by(Event.updated_at.desc()).all()
+    recent_events = (
+        db.query(Event.category, Event.updated_at)
+        .filter(Event.category.isnot(None), Event.is_archived.is_(False))
+        .order_by(Event.updated_at.desc())
+        .all()
+    )
 
-    # Track seen features and their most recent update
-    seen = {}
+    seen: dict[str, datetime] = {}
     for category, updated_at in recent_events:
         if category and category not in seen:
             seen[category] = updated_at
 
-    # Sort by most recent update and get top 3
-    sorted_by_recent = sorted(seen.items(), key=lambda x: x[1], reverse=True)
-    recent_features = [f[0] for f in sorted_by_recent[:3]]
-
-    # Get remaining features sorted alphabetically
-    remaining_features = sorted([f for f in seen.keys() if f not in recent_features])
+    sorted_by_recent = sorted(seen.items(), key=lambda item: item[1], reverse=True)
+    recent_features = [item[0] for item in sorted_by_recent[:3]]
+    remaining_features = sorted([feature for feature in seen.keys() if feature not in recent_features])
 
     return {
         "recent": recent_features,
         "all": recent_features + remaining_features,
-        "default": "Engagement"
+        "default": "Engagement",
     }
 
 
 @app.get("/api/filter-options")
 def get_filter_options(db: Session = Depends(get_db)):
-    """Get all available filter options (categories, creators, date range)."""
-    # Get unique categories
-    categories = db.query(Event.category).filter(
-        Event.category.isnot(None)
-    ).distinct().all()
-    category_list = sorted([c[0] for c in categories if c[0]])
+    active_events = db.query(Event).filter(Event.is_archived.is_(False))
 
-    # Get unique creators
-    creators = db.query(Event.created_by).filter(
-        Event.created_by.isnot(None)
-    ).distinct().all()
-    creator_list = sorted([c[0] for c in creators if c[0]])
-
-    # Get date range
-    date_range = db.query(
-        func.min(Event.created_at).label('min_date'),
-        func.max(Event.created_at).label('max_date')
+    categories = active_events.with_entities(Event.category).filter(Event.category.isnot(None)).distinct().all()
+    creators = active_events.with_entities(Event.created_by).filter(Event.created_by.isnot(None)).distinct().all()
+    date_range = active_events.with_entities(
+        func.min(Event.created_at).label("min_date"),
+        func.max(Event.created_at).label("max_date"),
     ).first()
 
     return {
-        "categories": category_list,
-        "creators": creator_list,
+        "categories": sorted([category[0] for category in categories if category[0]]),
+        "creators": sorted([creator[0] for creator in creators if creator[0]]),
         "date_range": {
             "min": date_range.min_date.isoformat() if date_range.min_date else None,
-            "max": date_range.max_date.isoformat() if date_range.max_date else None
-        }
+            "max": date_range.max_date.isoformat() if date_range.max_date else None,
+        },
     }
 
 
 @app.get("/")
 def root():
-    return {"message": "Event Taxonomy Tracker API", "version": "1.0.0"}
+    return {"message": "Event Taxonomy Tracker API", "version": "2.0.0"}
 
-
-# ========== BULK IMPORT/EXPORT ENDPOINTS ==========
 
 @app.get("/api/export/template/json")
 def download_json_template():
-    """Download a JSON template for bulk import."""
     template = [
         {
             "name": "Example Event",
@@ -810,9 +478,9 @@ def download_json_template():
                     "data_type": "String",
                     "is_required": True,
                     "example_value": "example_value",
-                    "description": "What this property represents"
+                    "description": "What this property represents",
                 }
-            ]
+            ],
         }
     ]
 
@@ -820,44 +488,64 @@ def download_json_template():
     return StreamingResponse(
         io.BytesIO(json_str.encode()),
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=event_template.json"}
+        headers={"Content-Disposition": "attachment; filename=event_template.json"},
     )
 
 
 @app.get("/api/export/template/csv")
 def download_csv_template():
-    """Download a CSV template for bulk import."""
     output = io.StringIO()
     writer = csv.writer(output)
-
-    # Header
-    writer.writerow([
-        "event_name", "event_description", "event_category",
-        "property_name", "property_type", "data_type",
-        "is_required", "example_value", "property_description"
-    ])
-
-    # Example rows
-    writer.writerow([
-        "Example Event", "Description of event", "Engagement",
-        "user_id", "user", "String", "true", "user_123", "Unique user identifier"
-    ])
-    writer.writerow([
-        "Example Event", "", "",
-        "action_name", "event", "String", "true", "click", "Name of the action"
-    ])
+    writer.writerow(
+        [
+            "event_name",
+            "event_description",
+            "event_category",
+            "property_name",
+            "property_type",
+            "data_type",
+            "is_required",
+            "example_value",
+            "property_description",
+        ]
+    )
+    writer.writerow(
+        [
+            "Example Event",
+            "Description of event",
+            "Engagement",
+            "user_id",
+            "user",
+            "String",
+            "true",
+            "user_123",
+            "Unique user identifier",
+        ]
+    )
+    writer.writerow(
+        [
+            "Example Event",
+            "",
+            "",
+            "action_name",
+            "event",
+            "String",
+            "true",
+            "click",
+            "Name of the action",
+        ]
+    )
 
     output.seek(0)
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode()),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=event_template.csv"}
+        headers={"Content-Disposition": "attachment; filename=event_template.csv"},
     )
 
 
 @app.post("/api/import/json")
 async def import_json(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Import events from JSON file."""
     try:
         content = await file.read()
         events_data = json.loads(content)
@@ -871,113 +559,101 @@ async def import_json(file: UploadFile = File(...), db: Session = Depends(get_db
         for idx, event_data in enumerate(events_data):
             try:
                 event_create = EventCreate(**event_data)
-                _create_event_atomic(db, event_create, created_by_fallback="bulk_import")
+                create_event_versioned(db, event_create)
                 db.commit()
                 imported_count += 1
-
-            except HTTPException as e:
+            except (DuplicatePropertyError, RegistryConflictError, InvalidEventStateError) as error:
                 db.rollback()
-                errors.append(f"Row {idx + 1}: {e.detail}")
-            except ValidationError as e:
+                errors.append(f"Row {idx + 1}: {str(error)}")
+            except ValidationError as error:
                 db.rollback()
-                errors.append(f"Row {idx + 1}: {e.errors()}")
+                errors.append(f"Row {idx + 1}: {error.errors()}")
             except IntegrityError:
                 db.rollback()
                 errors.append(f"Row {idx + 1}: Integrity constraint conflict")
-            except Exception as e:
+            except Exception as error:
                 db.rollback()
-                errors.append(f"Row {idx + 1}: {str(e)}")
+                errors.append(f"Row {idx + 1}: {str(error)}")
 
         return {
             "imported": imported_count,
             "total": len(events_data),
-            "errors": errors
+            "errors": errors,
         }
-
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except json.JSONDecodeError as error:
+        raise HTTPException(status_code=400, detail="Invalid JSON file") from error
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/import/csv")
 async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Import events from CSV file."""
     try:
         content = await file.read()
-        csv_data = io.StringIO(content.decode('utf-8'))
+        csv_data = io.StringIO(content.decode("utf-8"))
         reader = csv.DictReader(csv_data)
 
-        events_dict = {}
+        events_dict: dict[str, dict] = {}
         errors = []
 
         for idx, row in enumerate(reader):
             try:
-                event_name = row.get('event_name', '').strip()
+                event_name = row.get("event_name", "").strip()
                 if not event_name:
                     continue
 
-                # Group properties by event
                 if event_name not in events_dict:
                     events_dict[event_name] = {
-                        'name': event_name,
-                        'description': row.get('event_description', '').strip(),
-                        'category': row.get('event_category', '').strip(),
-                        'properties': []
+                        "name": event_name,
+                        "description": row.get("event_description", "").strip() or None,
+                        "category": row.get("event_category", "").strip() or None,
+                        "created_by": "bulk_import",
+                        "properties": [],
                     }
 
-                # Add property if present
-                prop_name = row.get('property_name', '').strip()
-                if prop_name:
-                    events_dict[event_name]['properties'].append({
-                        'property_name': prop_name,
-                        'property_type': row.get('property_type', 'event').strip(),
-                        'data_type': row.get('data_type', 'String').strip(),
-                        'is_required': row.get('is_required', '').lower() in ['true', '1', 'yes'],
-                        'example_value': row.get('example_value', '').strip(),
-                        'description': row.get('property_description', '').strip()
-                    })
-
-            except Exception as e:
-                errors.append(f"Row {idx + 2}: {str(e)}")
+                property_name = row.get("property_name", "").strip()
+                if property_name:
+                    events_dict[event_name]["properties"].append(
+                        {
+                            "property_name": property_name,
+                            "property_type": row.get("property_type", "event").strip(),
+                            "data_type": row.get("data_type", "String").strip(),
+                            "is_required": row.get("is_required", "").lower() in {"true", "1", "yes"},
+                            "example_value": row.get("example_value", "").strip() or None,
+                            "description": row.get("property_description", "").strip() or None,
+                        }
+                    )
+            except Exception as error:
+                errors.append(f"Row {idx + 2}: {str(error)}")
 
         imported_count = 0
-
         for event_data in events_dict.values():
             try:
-                event_create = EventCreate(
-                    name=event_data['name'],
-                    description=event_data['description'],
-                    category=event_data['category'],
-                    created_by="bulk_import",
-                    properties=[EventPropertyCreate(**p) for p in event_data['properties']]
-                )
-                _create_event_atomic(db, event_create, created_by_fallback="bulk_import")
+                event_create = EventCreate(**event_data)
+                create_event_versioned(db, event_create)
                 db.commit()
                 imported_count += 1
-
-            except HTTPException as e:
-                errors.append(f"Event '{event_data['name']}': {e.detail}")
+            except (DuplicatePropertyError, RegistryConflictError, InvalidEventStateError) as error:
                 db.rollback()
-            except ValidationError as e:
-                errors.append(f"Event '{event_data['name']}': {e.errors()}")
+                errors.append(f"Event '{event_data['name']}': {str(error)}")
+            except ValidationError as error:
                 db.rollback()
+                errors.append(f"Event '{event_data['name']}': {error.errors()}")
             except IntegrityError:
+                db.rollback()
                 errors.append(f"Event '{event_data['name']}': Integrity constraint conflict")
+            except Exception as error:
                 db.rollback()
-            except Exception as e:
-                errors.append(f"Event '{event_data['name']}': {str(e)}")
-                db.rollback()
+                errors.append(f"Event '{event_data['name']}': {str(error)}")
 
         return {
             "imported": imported_count,
             "total": len(events_dict),
-            "errors": errors
+            "errors": errors,
         }
-
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error

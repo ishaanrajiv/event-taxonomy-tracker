@@ -5,6 +5,7 @@ description = "Event taxonomy management tracker with property registry and conf
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.16.5",
     "fastapi>=0.104.1",
     "uvicorn>=0.24.0",
     "sqlalchemy>=2.0.23",
@@ -22,7 +23,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
-only-include = ["backend/api.py", "backend/database.py", "backend/models.py", "backend/utils.py"]
+only-include = ["backend/api.py", "backend/database.py", "backend/models.py", "backend/utils.py", "backend/versioning.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]

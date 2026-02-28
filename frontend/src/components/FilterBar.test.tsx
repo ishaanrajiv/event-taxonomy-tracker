@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import FilterBar from './FilterBar';
-import type { ActiveFilters, FilterOptions } from '../types/api';
+import type { FilterOptions } from '../types/api';
 
 const filterOptions: FilterOptions = {
   categories: ['Engagement', 'Navigation'],

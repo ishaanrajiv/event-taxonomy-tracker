@@ -50,13 +50,25 @@ const FilterBar: React.FC<FilterBarProps> = ({
     onFiltersChange(newFilters);
   };
 
+  const handleArchivedStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = (e.target.value || 'active') as ActiveFilters['archivedState'];
+    const newFilters = { ...localFilters, archivedState: value };
+    setLocalFilters(newFilters);
+    onFiltersChange(newFilters);
+  };
+
   const handleClearFilters = () => {
     const emptyFilters: ActiveFilters = {};
     setLocalFilters(emptyFilters);
     onFiltersChange(emptyFilters);
   };
 
-  const hasActiveFilters = Object.values(localFilters).some(v => v !== undefined);
+  const hasActiveFilters = Object.entries(localFilters).some(([key, value]) => {
+    if (key === 'archivedState') {
+      return value !== undefined && value !== 'active';
+    }
+    return value !== undefined;
+  });
 
   const isDateRangeInvalid = Boolean(
     localFilters.dateFrom &&
@@ -83,7 +95,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div>
           <label htmlFor="filter-category" className="block text-[11px] font-semibold text-foreground mb-1.5">
             Category
@@ -119,6 +131,22 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {creator}
               </option>
             ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="filter-archived-state" className="block text-[11px] font-semibold text-foreground mb-1.5">
+            Status
+          </label>
+          <select
+            id="filter-archived-state"
+            value={localFilters.archivedState || 'active'}
+            onChange={handleArchivedStateChange}
+            className="w-full h-8 px-2.5 text-xs border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50 transition-all"
+          >
+            <option value="active">Active Only</option>
+            <option value="all">Active + Archived</option>
+            <option value="archived">Archived Only</option>
           </select>
         </div>
 
