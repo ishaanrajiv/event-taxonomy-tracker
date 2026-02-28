@@ -9,9 +9,7 @@ This repository now uses a local-first TypeScript monorepo for a workflow-first 
   - `apps/api`: Fastify + Drizzle + SQLite API server
   - `packages/contracts`: shared Zod schemas + inferred types
   - `storage/`: local uploaded source files
-- Legacy code moved to:
-  - `legacy/backend` (Python/FastAPI)
-  - `legacy/frontend` (previous SPA)
+- Legacy Python/frontend code has been removed from the active codebase.
 
 ## Product Model
 
@@ -84,4 +82,3 @@ npm run typecheck
 
 - Persistence uses local SQLite (`apps/api/data/tracking-plan.db`) and filesystem storage (`storage/`).
 - No auth/permissions, no remote DB, and no deployment pipeline are included in this version.
-- Legacy Python/old frontend remain available under `legacy/` until final cutover cleanup.

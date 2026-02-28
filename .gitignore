@@ -1,17 +1,3 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv/
-venv/
-ENV/
-env/
-
-# uv
-.uv/
-
 # Database
 *.db
 *.db-shm
@@ -41,10 +27,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-
-# pytest
-.coverage
-.pytest_cache/
 
 # Local storage and generated artifacts
 storage/
