@@ -1,88 +1,36 @@
-import { anthropic } from '@ai-sdk/anthropic';
-import { openai } from '@ai-sdk/openai';
-import { google } from '@ai-sdk/google';
+import { gateway } from '@ai-sdk/gateway';
 import type { LanguageModel } from 'ai';
 
-type Provider = 'anthropic' | 'openai' | 'google';
-
-interface ProviderConfig {
-  name: string;
-  envVarName: string;
-  getUrl: string;
-  defaultModel: string;
-  createModel: (modelId: string) => LanguageModel;
-}
-
-const PROVIDERS: Record<Provider, ProviderConfig> = {
-  anthropic: {
-    name: 'Anthropic (Claude)',
-    envVarName: 'ANTHROPIC_API_KEY',
-    getUrl: 'https://console.anthropic.com/settings/keys',
-    defaultModel: 'claude-sonnet-4-20250514',
-    createModel: (modelId) => anthropic(modelId),
-  },
-  openai: {
-    name: 'OpenAI (GPT)',
-    envVarName: 'OPENAI_API_KEY',
-    getUrl: 'https://platform.openai.com/api-keys',
-    defaultModel: 'gpt-4o',
-    createModel: (modelId) => openai(modelId),
-  },
-  google: {
-    name: 'Google (Gemini)',
-    envVarName: 'GOOGLE_GENERATIVE_AI_API_KEY',
-    getUrl: 'https://aistudio.google.com/app/apikey',
-    defaultModel: 'gemini-2.0-flash-exp',
-    createModel: (modelId) => google(modelId),
-  },
-};
+const DEFAULT_MODEL = 'openai/gpt-5-nano';
 
 /**
- * Get the configured LLM model for event generation
+ * Get the configured LLM model for event generation via Vercel AI Gateway.
  *
  * Environment Variables:
- * - LLM_PROVIDER (optional): 'anthropic' | 'openai' | 'google' (default: 'anthropic')
- * - LLM_MODEL (optional): Model ID override (uses provider default if not set)
- * - ANTHROPIC_API_KEY (required if provider=anthropic)
- * - OPENAI_API_KEY (required if provider=openai)
- * - GOOGLE_GENERATIVE_AI_API_KEY (required if provider=google)
+ * - AI_GATEWAY_API_KEY (required): Vercel API key for the AI Gateway
+ * - LLM_MODEL (optional): Model identifier in "provider:model" format
+ *   (default: anthropic:claude-sonnet-4-20250514)
  *
- * @throws {Error} If required API key is not set
- * @returns Language model instance configured for the selected provider
+ * @throws {Error} If AI_GATEWAY_API_KEY is not set
+ * @returns Language model instance configured via Vercel AI Gateway
  */
 export function getModel(): LanguageModel {
-  const providerName = (process.env.LLM_PROVIDER || 'anthropic') as Provider;
-  const provider = PROVIDERS[providerName];
-
-  if (!provider) {
+  if (!process.env.AI_GATEWAY_API_KEY) {
     throw new Error(
-      `Invalid LLM_PROVIDER: "${providerName}"\n\n` +
-      `Supported providers: ${Object.keys(PROVIDERS).join(', ')}\n\n` +
-      `Set LLM_PROVIDER in your .env file to one of the supported providers.`
-    );
-  }
-
-  // Check for API key
-  const apiKey = process.env[provider.envVarName];
-  if (!apiKey) {
-    throw new Error(
-      `${provider.envVarName} environment variable is not set.\n\n` +
-      `LLM-powered event generation requires an API key for ${provider.name}.\n\n` +
+      `AI_GATEWAY_API_KEY environment variable is not set.\n\n` +
+      `LLM-powered event generation requires a Vercel API key.\n\n` +
       `Setup instructions:\n` +
-      `1. Get your API key from: ${provider.getUrl}\n` +
-      `2. Copy apps/api/.env.example to apps/api/.env\n` +
-      `3. Add your key: ${provider.envVarName}=...\n` +
+      `1. Get your API key from: https://vercel.com/account/api-tokens\n` +
+      `2. Copy .env.example to .env\n` +
+      `3. Add your key: AI_GATEWAY_API_KEY=...\n` +
       `4. Restart the server\n\n` +
-      `Alternative: Use a different provider by setting LLM_PROVIDER in .env\n` +
-      `Supported providers: ${Object.keys(PROVIDERS).join(', ')}\n\n` +
       `Note: The app will work without this key, but "Generate from PRD" feature will be disabled.`
     );
   }
 
-  // Use custom model or default
-  const modelId = process.env.LLM_MODEL || provider.defaultModel;
+  const modelId = process.env.LLM_MODEL || DEFAULT_MODEL;
 
-  console.log(`[LLM] Using provider: ${providerName}, model: ${modelId}`);
+  console.log(`[LLM] Using model: ${modelId}`);
 
-  return provider.createModel(modelId);
+  return gateway(modelId);
 }

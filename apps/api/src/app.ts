@@ -955,8 +955,8 @@ export function createApp(options: CreateAppOptions = {}): {
         usage: result.usage,
       });
     } catch (error: any) {
-      if (error.message?.includes('ANTHROPIC_API_KEY')) {
-        throw new HttpError(500, 'LLM API key not configured. Please set ANTHROPIC_API_KEY environment variable.');
+      if (error.message?.includes('AI_GATEWAY_API_KEY')) {
+        throw new HttpError(500, 'LLM API key not configured. Please set AI_GATEWAY_API_KEY environment variable.');
       }
       throw error;
     }

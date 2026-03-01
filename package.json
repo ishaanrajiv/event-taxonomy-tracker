@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,frontend -c magenta,cyan \"bun run dev:api\" \"bun run dev:frontend\"",
-    "dev:api": "cd apps/api && bun run dev",
+    "dev:api": "bun --watch apps/api/src/index.ts",
     "dev:frontend": "cd apps/frontend && bun run dev",
     "test": "bun run test:api && bun run test:frontend",
     "test:api": "cd apps/api && bun run test",
