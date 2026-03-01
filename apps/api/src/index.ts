@@ -10,5 +10,6 @@ console.log(`Event Taxonomy Tracker API listening on http://${host}:${port}`);
 Bun.serve({
   port,
   hostname: host,
+  idleTimeout: 120,
   fetch: app.fetch,
 });

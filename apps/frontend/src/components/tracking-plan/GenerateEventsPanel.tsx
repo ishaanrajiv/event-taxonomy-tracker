@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import type { EventWriteProperty } from '../../types/api';
 
@@ -60,8 +60,11 @@ export default function GenerateEventsPanel({
     }
   };
 
-  // Auto-trigger generation when panel opens
+  // Auto-trigger generation when panel opens (ref guards against StrictMode double-fire)
+  const hasStarted = useRef(false);
   useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
     handleGenerate();
   }, []);
 

@@ -101,13 +101,43 @@ export async function generateEventsFromPrd(
     exampleEvents: exampleEventsWithProps,
   });
 
+  console.log('[LLM] generateEventsFromPrd starting', {
+    planId: input.planId,
+    planTitle: input.planTitle,
+    existingEvents: existingEvents.length,
+    existingProperties: existingProperties.length,
+    exampleEvents: exampleEventsWithProps.length,
+    promptLength: prompt.length,
+  });
+
   // Generate structured output using Vercel AI SDK
   const model = getModel();
+  const startTime = performance.now();
 
-  const result = await generateObject({
-    model,
-    schema: GeneratedEventsSchema,
-    prompt,
+  let result;
+  try {
+    result = await generateObject({
+      model,
+      schema: GeneratedEventsSchema,
+      prompt,
+      maxRetries: 0,
+    });
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startTime);
+    console.error('[LLM] generateEventsFromPrd failed', {
+      planId: input.planId,
+      durationMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+
+  const durationMs = Math.round(performance.now() - startTime);
+  console.log('[LLM] generateEventsFromPrd completed', {
+    planId: input.planId,
+    durationMs,
+    eventsGenerated: result.object.events.length,
+    usage: result.usage,
   });
 
   // Match duplicate_of_name to actual event IDs
