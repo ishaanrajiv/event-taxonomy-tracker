@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import type { EventWriteProperty } from '../../types/api';
 
@@ -54,10 +54,16 @@ export default function GenerateEventsPanel({
     } catch (error: any) {
       console.error('Failed to generate events:', error);
       onError(error.response?.data?.detail || 'Failed to generate events from PRD');
+      onClose();
     } finally {
       setLoading(false);
     }
   };
+
+  // Auto-trigger generation when panel opens
+  useEffect(() => {
+    handleGenerate();
+  }, []);
 
   const handleToggleEvent = (index: number) => {
     const newSelected = new Set(selectedIds);
@@ -104,33 +110,10 @@ export default function GenerateEventsPanel({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {suggestions.length === 0 ? (
             <div className="text-center py-12">
-              <svg className="h-16 w-16 mx-auto text-muted-foreground/40 mb-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 22l-.394-1.433a2.25 2.25 0 00-1.423-1.423L13.25 19l1.433-.394a2.25 2.25 0 001.423-1.423L16.5 16l.394 1.183a2.25 2.25 0 001.423 1.423L19.75 19l-1.433.394a2.25 2.25 0 00-1.423 1.423z" />
+              <svg className="h-10 w-10 mx-auto text-muted-foreground/60 mb-4 animate-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8m0 16a8 8 0 01-8-8" />
               </svg>
-              <p className="text-sm text-muted-foreground mb-6">
-                Click the button below to generate event suggestions from your PRD
-              </p>
-              <button
-                onClick={handleGenerate}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8m0 16a8 8 0 01-8-8" />
-                    </svg>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
-                    Generate Events
-                  </>
-                )}
-              </button>
+              <p className="text-sm text-muted-foreground">Generating event suggestions from your PRD...</p>
             </div>
           ) : (
             <div className="space-y-3">

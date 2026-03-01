@@ -71,11 +71,10 @@ export async function generateEventsFromPrd(
   const exampleEventsWithProps = exampleEvents.map((event) => {
     const properties = input.db
       .query(
-        `SELECT p.property_name, p.property_type, p.data_type, p.is_required
-         FROM properties p
-         JOIN event_properties ep ON ep.property_id = p.id
+        `SELECT ep.property_name, ep.property_type, ep.data_type, ep.is_required
+         FROM event_properties ep
          WHERE ep.event_id = ?
-         ORDER BY p.property_name ASC
+         ORDER BY ep.property_name ASC
          LIMIT 20`,
       )
       .all(event.id) as Array<{
